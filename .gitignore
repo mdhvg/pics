@@ -2,6 +2,9 @@ build
 bin
 imgui
 
-test_imags
+test_imgs
 *.json
 .cache
+imgui.ini
+
+.vs
