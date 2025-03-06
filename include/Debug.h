@@ -1,10 +1,16 @@
 #include <spdlog/spdlog.h>
 
+#ifdef _WIN32
+#define TRAP() __debugbreak();
+#else
+#define TRAP() __builtin_trap();
+#endif
+
 #ifdef DEBUG
 #define ASSERT(x) if (!(x)) \
     { \
         SPDLOG_ERROR("Assertion failed: {}", #x); \
-        __builtin_trap(); \
+        TRAP() \
     }
 
 #define GL_CALL(x) if ((x) <= 0) \
@@ -15,7 +21,7 @@
             ERR_error_string_n(err_code, err_msg, sizeof(err_msg)); \
             SPDLOG_ERROR("OpenSSL error: {}", err_msg); \
         } \
-        __builtin_trap(); \
+        TRAP() \
     }
 #else
 #define ASSERT(x) if (!(x)) \

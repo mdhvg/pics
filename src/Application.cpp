@@ -1,6 +1,10 @@
 #include "Application.h"
 #include "Debug.h"
+#include "ImageUtils.h"
+
 #include <fstream>
+
+#include <spdlog/spdlog.h>
 
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
@@ -10,7 +14,7 @@ json create_default_config() {
     return json({
         {"images", {
             {"paths", {
-                "test_imgs"
+                "/test_imgs"
             }}
         }}
         });
@@ -107,6 +111,9 @@ Application::Application() {
 }
 
 Application::~Application() {
+    if (imageListThread.joinable())
+        imageListThread.join();
+
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
@@ -115,6 +122,9 @@ Application::~Application() {
 }
 
 void Application::start() {
+    fs::path imageRootPath = std::string(ROOT_DIR) + config["images"]["paths"][0].get<std::string>();
+    imageListThread = std::thread(listImages, std::ref(imageRootPath), std::ref(imagePaths));
+
     while (!glfwWindowShouldClose(window) || running) {
         glfwPollEvents();
         if (glfwGetWindowAttrib(window, GLFW_ICONIFIED) != 0)
@@ -151,6 +161,10 @@ void Application::start() {
         ImGui::SameLine();
         ImGui::BeginChild("Right Page", ImVec2(0, 0), true);
         ImGui::Text("Right Pane");
+        ImGui::Text("Scanned Images %d", imagePaths.size());
+        for (auto const& path : imagePaths) {
+            ImGui::Text("Path: %ls", path.c_str());
+        }
         ImGui::EndChild();
 
         ImGui::End();
