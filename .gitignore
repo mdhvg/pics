@@ -1,0 +1,7 @@
+build
+bin
+imgui
+
+test_imags
+*.json
+.cache
