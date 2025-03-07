@@ -125,6 +125,8 @@ void Application::start() {
     fs::path imageRootPath = std::string(ROOT_DIR) + config["images"]["paths"][0].get<std::string>();
     imageListThread = std::thread(listImages, std::ref(imageRootPath), std::ref(imagePaths));
 
+    float startTime = 0.0f;
+
     while (!glfwWindowShouldClose(window) || running) {
         glfwPollEvents();
         if (glfwGetWindowAttrib(window, GLFW_ICONIFIED) != 0)
@@ -157,13 +159,20 @@ void Application::start() {
 
         ImGui::BeginChild("Left Page", ImVec2(200, 0), true);
         ImGui::Text("Left Pane");
+        float curTime = glfwGetTime();
+        ImGui::Text("FPS: %.2f", 1.0f / (curTime - startTime));
+        startTime = curTime;
         ImGui::EndChild();
         ImGui::SameLine();
         ImGui::BeginChild("Right Page", ImVec2(0, 0), true);
         ImGui::Text("Right Pane");
         ImGui::Text("Scanned Images %d", imagePaths.size());
-        for (auto const& path : imagePaths) {
+        /* for (auto const& path : imagePaths) {
             ImGui::Text("Path: %ls", path.c_str());
+        } */
+        for (auto const& [image, texture] : imageTextures) {
+            ImGui::Text("Path: %ls", image.c_str());
+            ImGui::Image((ImTextureID)(texture.textureID), ImVec2(256, 256), texture.uv0, texture.uv1);
         }
         ImGui::EndChild();
 
@@ -191,6 +200,9 @@ void Application::start() {
         }
 
         glfwSwapBuffers(window);
+
+        if (imageTextures.size() < imagePaths.size())
+            loadImage(imagePaths[imageTextures.size()], imageTextures);
     }
 }
 

@@ -1,3 +1,5 @@
+#include "ImageTexture.h"
+
 #include <memory>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -23,6 +25,7 @@ private:
 	bool running = true;
 	std::thread imageListThread;
 	std::vector<fs::path> imagePaths;
+	std::unordered_map<fs::path, ImageTexture> imageTextures;
 
 	static std::shared_ptr<Application> instance;
 	GLFWwindow* window;
