@@ -14,3 +14,6 @@
 [submodule "deps/fmt"]
 	path = deps/fmt
 	url = https://github.com/fmtlib/fmt
+[submodule "deps/ggml"]
+	path = deps/ggml
+	url = https://github.com/ggml-org/ggml

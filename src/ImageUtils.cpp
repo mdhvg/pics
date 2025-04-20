@@ -1,5 +1,7 @@
 #include "ImageUtils.h"
 #include "Debug.h"
+#include "Application.h"
+#include "ImageTexture.h"
 
 #include <spdlog/spdlog.h>
 #include <glad/glad.h>
@@ -12,25 +14,28 @@
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb_image_resize2.h"
 
-void listImagesHelper(fs::path& dir, std::vector<fs::path>& imagePaths, std::vector<fs::path>& pending) {
-	for (const fs::path& entry : fs::directory_iterator{ dir }) {
+void listImagesHelper(fs::path &dir, std::vector<fs::path> &imagePaths, std::vector<fs::path> &pending) {
+	for (const fs::path &entry : fs::directory_iterator{ dir }) {
 		if (fs::is_directory(entry)) {
 			pending.push_back(entry);
 		}
 		if (entry.extension() == ".jpg" || entry.extension() == ".png") {
-			imagePaths.push_back(fs::absolute(entry));
+			auto path = fs::absolute(entry);
+			imagePaths.push_back(path);
+			loadImage(path);
 		}
-		//std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		// std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 	}
 }
 
-void listImages(fs::path& root, std::vector<fs::path>& imagePaths) {
+void listImages(fs::path &root, std::vector<fs::path> &imagePaths) {
+	SignalBus &bus = SignalBus::getInstance();
 
 	// TODO: Document about max directory traversal levels = 15
 	const int maxLevel = 15;
 	int currentLevel = 0;
 	std::vector<fs::path> pending = { root };
-	while (pending.size() && currentLevel <= maxLevel) {
+	while (bus.appRunningM && pending.size() && currentLevel <= maxLevel) {
 		const int numDirs = pending.size();
 		for (int i = 0; i < numDirs; i++) {
 			fs::path current = pending[0];
@@ -39,60 +44,72 @@ void listImages(fs::path& root, std::vector<fs::path>& imagePaths) {
 		}
 		currentLevel++;
 	}
-	if (pending.size()) {
+	if (pending.size() && currentLevel >= maxLevel) {
 		SPDLOG_WARN("Max directory depth ({}) exceeded", maxLevel);
 	}
 }
 
-
-void loadImage(fs::path imagePath, std::unordered_map<fs::path, ImageTexture>& imageTextures) {
+void loadImage(fs::path imagePath) {
+#ifdef _WIN32
 	auto path = imagePath.u8string();
-	auto s = std::string(reinterpret_cast<const char*>(path.data()), path.size());
+	auto s = std::string(reinterpret_cast<const char *>(path.data()), path.size());
+#else
+	auto s = imagePath.string();
+#endif
 	int width, height, channels;
-	unsigned char* pixelData = stbi_load(s.c_str(), &width, &height, &channels, 4);
+	unsigned char *pixelData = stbi_load(s.c_str(), &width, &height, &channels, 4);
 	ASSERT(pixelData != nullptr, fmt::format("Couldn't load image: {}", s).c_str());
 
 	const float aspect = (float)width / (float)height;
 
+	Application &app = Application::getInstance();
+
 	// TODO: Make the MAX_SIZE depend on atlas dimensions and pictures per atlas
-	const int MAX_SIDE = 256;
+	const int MAX_SIDE = 224;
 	int newHeight, newWidth;
 
 	if (height > width) {
 		newHeight = MAX_SIDE / aspect;
 		newWidth = MAX_SIDE;
-	}
-	else {
+	} else {
 		newHeight = MAX_SIDE;
 		newWidth = MAX_SIDE * aspect;
 	}
 
 	// TODO: Make number of channels also dependent on kind of image
-	unsigned char* resizedPixelData = new unsigned char[newHeight * newWidth * 4];
+	unsigned char *resizedPixelData = new unsigned char[newHeight * newWidth * 4];
 	stbir_resize_uint8_srgb(pixelData, width, height, 0, resizedPixelData, newWidth, newHeight, 0, STBIR_RGBA);
 	stbi_image_free(pixelData);
 
-	unsigned int texture;
-	GL_CALL(glGenTextures(1, &texture));
-	GL_CALL(glBindTexture(GL_TEXTURE_2D, texture));
-
-	GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-	GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-
-	GL_CALL(glPixelStorei(GL_UNPACK_ROW_LENGTH, 0));
-	GL_CALL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, newWidth, newHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, resizedPixelData));
-	stbi_image_free(resizedPixelData);
-
-	float uvX = (newWidth - 256.0f) / (newWidth * 2.0f);
-	float uvY = (newHeight - 256.0f) / (newHeight * 2.0f);
+	float uvX = (newWidth - 224.0f) / (newWidth * 2.0f);
+	float uvY = (newHeight - 224.0f) / (newHeight * 2.0f);
 
 	ImageTexture t{
-		.textureID = texture,
 		.width = newWidth,
 		.height = newHeight,
-		.uv0 = {uvX, uvY},
-		.uv1 = {1 - uvX, 1 - uvY}
+		.uv0 = { uvX, uvY },
+		.uv1 = { 1 - uvX, 1 - uvY },
+		.initialized = false,
+		.data = resizedPixelData
 	};
 
-	imageTextures[imagePath] = t;
+	app.imageTextures[imagePath] = t;
+
+	// unsigned int texture;
+}
+
+void initializeTexture(fs::path imagePath) {
+	Application &app = Application::getInstance();
+
+	ImageTexture &t = app.imageTextures[imagePath];
+	glGenTextures(1, &(t.textureID));
+	glBindTexture(GL_TEXTURE_2D, (t.textureID));
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, t.width, t.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, t.data);
+	stbi_image_free(t.data);
+	t.initialized = true;
 }

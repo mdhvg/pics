@@ -1,0 +1,42 @@
+# Clang-Format Configuration
+
+BasedOnStyle: llvm
+IndentWidth: 4
+TabWidth: 4
+UseTab: Always
+
+# Don't collapse short things into one line
+AllowShortBlocksOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+
+# Brace formatting style: func() {
+BreakBeforeBraces: Attach
+BraceWrapping:
+  AfterFunction: false
+  AfterControlStatement: false
+  AfterEnum: false
+  AfterStruct: false
+  AfterClass: false
+  AfterUnion: false
+  BeforeCatch: false
+  BeforeElse: false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: false
+
+# Prevent horizontal squeezing
+BinPackArguments: false
+BinPackParameters: false
+AllowAllConstructorInitializersOnNextLine: false
+
+# Comments & whitespace
+ReflowComments: false
+Cpp11BracedListStyle: false
+SpacesInContainerLiterals: true
+SpaceBeforeParens: ControlStatements
+
+# Misc formatting
+ColumnLimit: 0
+SortIncludes: false

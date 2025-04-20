@@ -1,13 +1,13 @@
 #include "Debug.h"
 #include "Application.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
 
-#include "imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_opengl3.h"
+#include <spdlog/spdlog.h>
 
-int main(int, char**)
-{
-    std::shared_ptr<Application> app = Application::getInstance();
-    app->start();
-    return 0;
+int main(int, char **) {
+	spdlog::set_default_logger(spdlog::stdout_color_mt("console"));
+
+	Application &app = Application::getInstance();
+	app.start();
+	return 0;
 }

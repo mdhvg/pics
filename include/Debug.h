@@ -8,39 +8,54 @@
 #endif
 
 #ifdef DEBUG
-#define ASSERT_IMPL(x, msg) if (!(x)) \
-    { \
-        SPDLOG_ERROR("Assertion failed: {} | {}", #x, msg); TRAP(); \
-    }
+#define ASSERT_IMPL(x, msg)                                 \
+	if (!(x)) {                                             \
+		SPDLOG_ERROR("Assertion failed: {} | {}", #x, msg); \
+		TRAP();                                             \
+	}
 
-#define ASSERT_NO_MSG(x) if (!(x)) \
-    { \
-        SPDLOG_ERROR("Assertion failed: {}", #x); TRAP(); \
-    }
+#define ASSERT_NO_MSG(x)                          \
+	if (!(x)) {                                   \
+		SPDLOG_ERROR("Assertion failed: {}", #x); \
+		TRAP();                                   \
+	}
 
-#define GET_MACRO(_1,_2,NAME,...) NAME
+#define GET_MACRO(_1, _2, NAME, ...) NAME
 
 #define ASSERT(...) \
-    GET_MACRO(__VA_ARGS__, ASSERT_IMPL, ASSERT_NO_MSG)(__VA_ARGS__)
+	GET_MACRO(__VA_ARGS__, ASSERT_IMPL, ASSERT_NO_MSG)(__VA_ARGS__)
 
-#define GL_CALL(x) GLClearError(); x; ASSERT(GLLogCall(#x, __FILE__, __LINE__));
-    void GLClearError();
-    bool GLLogCall(const char* function, const char* file, int line);
+#define GL_CALL(x)                                                        \
+	if ((x) <= 0) {                                                       \
+		unsigned long err_code;                                           \
+		while ((err_code = ERR_get_error()) != 0) {                       \
+			char err_msg[256];                                            \
+			SPDLOG_ERROR("[OpenGL error] [{}]: {}", error_code, err_msg); \
+		}                                                                 \
+		__builtin_trap();                                                 \
+	}
 #else
-#define ASSERT_IMPL(x, msg) if (!(x)) \
-    { \
-        SPDLOG_ERROR("Assertion failed: {} | {}", #x, msg); \
-    }
+#define ASSERT_IMPL(x, msg)                                 \
+	if (!(x)) {                                             \
+		SPDLOG_ERROR("Assertion failed: {} | {}", #x, msg); \
+	}
 
-#define ASSERT_NO_MSG(x) if (!(x)) \
-    { \
-        SPDLOG_ERROR("Assertion failed: {}", #x); \
-    }
+#define ASSERT_NO_MSG(x)                          \
+	if (!(x)) {                                   \
+		SPDLOG_ERROR("Assertion failed: {}", #x); \
+	}
 
-#define GET_MACRO(_1,_2,NAME,...) NAME
+#define GET_MACRO(_1, _2, NAME, ...) NAME
 
 #define ASSERT(...) \
-    GET_MACRO(__VA_ARGS__, ASSERT_IMPL, ASSERT_NO_MSG)(__VA_ARGS__)
+	GET_MACRO(__VA_ARGS__, ASSERT_IMPL, ASSERT_NO_MSG)(__VA_ARGS__)
 
-#define GL_CALL(x) x
+#define GL_CALL(x)                                                       \
+	if ((x) <= 0) {                                                      \
+		unsigned long err_code;                                          \
+		while ((err_code = ERR_get_error()) != 0) {                      \
+			char err_msg[256];                                           \
+			SPDLOG_ERROR("OpenSSL error [{}]: {}", error_code, err_msg); \
+		}                                                                \
+	}
 #endif
