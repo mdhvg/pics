@@ -2,17 +2,17 @@
 #include "Debug.h"
 #include "ImageUtils.h"
 
+#include <dlfcn.h>
+#include <renderdoc_app.h>
+#include <spdlog/spdlog.h>
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
+
 #include <algorithm>
 #include <chrono>
-#include <cmath>
 #include <cstring>
 #include <fstream>
-
-#include <spdlog/spdlog.h>
-
-#include "imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_opengl3.h"
 
 json create_default_config() {
 	// clang-format off
@@ -55,9 +55,28 @@ Application &Application::getInstance() {
 	return instance;
 }
 
-Application::Application() {
+Application::Application()
+	: db(ROOT_DIR "/pics.sqlite") {
+
+	if (void *mod = dlopen("librenderdoc.so", RTLD_NOW | RTLD_NOLOAD)) {
+		pRENDERDOC_GetAPI RENDERDOC_GetAPI = (pRENDERDOC_GetAPI)dlsym(mod, "RENDERDOC_GetAPI");
+		int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_6_0, (void **)&rdoc_api);
+		ASSERT(ret == 1);
+	}
+
 	config_path = ROOT_DIR "/config.json";
 	load_config();
+
+	db.executeSQL(R"(
+		CREATE TABLE IF NOT EXISTS images (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            path TEXT NOT NULL,
+			atlas_path TEXT NOT NULL,
+            atlas_x INTEGER NOT NULL,
+            atlas_y INTEGER NOT NULL
+		)
+		)");
 
 	SignalBus::getInstance();
 
@@ -85,6 +104,12 @@ Application::Application() {
 	SPDLOG_INFO("GLSL Version: {}", (const char *)glGetString(GL_SHADING_LANGUAGE_VERSION));
 	SPDLOG_INFO("GPU Vendor: {}", (const char *)glGetString(GL_VENDOR));
 	SPDLOG_INFO("Renderer: {}", (const char *)glGetString(GL_RENDERER));
+	int maxTextureUnits;
+	glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &maxTextureUnits);
+	SPDLOG_INFO("Maximum texture units: {}", maxTextureUnits);
+	GLint maxLayers;
+	glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &maxLayers);
+	SPDLOG_INFO("Maximum texture array layers supported: {}", maxLayers);
 
 	fs::path imageRootPath = std::string(ROOT_DIR) + config["images"]["paths"][0].get<std::string>();
 	imageListThread = std::thread(listImages, std::ref(imageRootPath), std::ref(imagePaths));
@@ -134,7 +159,7 @@ void Application::start() {
 	double maxLoadTime = 0.0f;
 
 	float fps = 0.0f;
-	float minFPS = MAXFLOAT;
+	float minFPS = float(0b11111111111111111111111111111111);
 	ImVec2 cursor;
 
 	while (!glfwWindowShouldClose(window) || running) {
@@ -173,7 +198,11 @@ void Application::start() {
 		startTime = curTime;
 		ImGui::InputTextWithHint("Search", "describe image...", searchField, 2048);
 		ImGui::Text("Max load time %.4f", maxLoadTime);
+#ifdef _WIN32
+		ImGui::Text("Scanned Images %lld", imagePaths.size());
+#else
 		ImGui::Text("Scanned Images %ld", imagePaths.size());
+#endif
 		ImGui::Text("Cursor pos: %.2fx, %2fy", cursor.x, cursor.y);
 		float widthAvail = ImGui::GetContentRegionAvail().x;
 		int cells = (int)(widthAvail / (224 + ImGui::GetStyle().ItemSpacing.x));
@@ -216,6 +245,11 @@ void Application::start() {
 		glClearColor(1, 0, 1, 1);
 		glClear(GL_COLOR_BUFFER_BIT);
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+		if (!glJobQ.empty()) {
+			glJobQ.pop()->execute();
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		}
 
 		// Update and Render additional Platform Windows
 		// Platform functions may change the current OpenGL context, so we save/restore it to make it easier to paste this code elsewhere.

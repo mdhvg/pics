@@ -8,7 +8,7 @@ struct ImageTexture {
 	int width, height;
 	ImVec2 uv0, uv1;
 	bool initialized = false;
-	unsigned char *data;
+	float *data;
 };
 
 #endif // !IMAGE_TEXTURE
