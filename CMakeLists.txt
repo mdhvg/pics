@@ -129,4 +129,14 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE "${USEARCH_DIR}/include
 
 # STB
 set(STB_DIR "${LIB_DIR}/stb")
+file(MAKE_DIRECTORY ${STB_DIR})
+
+set(STB_IMAGE_URL "https://raw.githubusercontent.com/nothings/stb/master/stb_image.h")
+set(STB_IMAGE_WRITE_URL "https://raw.githubusercontent.com/nothings/stb/master/stb_image_write.h")
+set(STB_IMAGE_RESIZE_URL "https://raw.githubusercontent.com/nothings/stb/master/stb_image_resize2.h")
+
+file(DOWNLOAD ${STB_IMAGE_URL} ${STB_DIR}/stb_image.h)
+file(DOWNLOAD ${STB_IMAGE_WRITE_URL} ${STB_DIR}/stb_image_write.h)
+file(DOWNLOAD ${STB_IMAGE_RESIZE_URL} ${STB_DIR}/stb_image_resize2.h)
+
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE "${STB_DIR}")

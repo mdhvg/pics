@@ -1,6 +1,7 @@
 build
 bin
 imgui
+deps/stb
 
 test_imgs
 *.json
