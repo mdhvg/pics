@@ -99,3 +99,34 @@ target_include_directories(imgui PUBLIC "${IMGUI_DIR}" "${IMGUI_DIR}/backends")
 target_link_libraries(imgui PUBLIC glfw glad)
 
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE imgui)
+
+# SQLite3
+include(FetchContent)
+
+FetchContent_Declare(
+  sqlite3
+  URL https://sqlite.org/2025/sqlite-amalgamation-3490100.zip
+  URL_HASH SHA256=6cebd1d8403fc58c30e93939b246f3e6e58d0765a5cd50546f16c00fd805d2c3
+)
+
+FetchContent_MakeAvailable(sqlite3)
+
+add_library(sqlite3 STATIC ${sqlite3_SOURCE_DIR}/sqlite3.c)
+target_include_directories(sqlite3 PUBLIC ${sqlite3_SOURCE_DIR})
+target_link_libraries(${PROJECT_NAME} PRIVATE sqlite3)
+
+# GGML
+set(GGML_DIR "${LIB_DIR}/ggml")
+add_subdirectory("${GGML_DIR}")
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE ggml)
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE "${GGML_DIR}/include")
+
+# Usearch
+set(USEARCH_DIR "${LIB_DIR}/usearch")
+add_subdirectory("${USEARCH_DIR}")
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE usearch)
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE "${USEARCH_DIR}/include")
+
+# STB
+set(STB_DIR "${LIB_DIR}/stb")
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE "${STB_DIR}")

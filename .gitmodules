@@ -17,3 +17,6 @@
 [submodule "deps/ggml"]
 	path = deps/ggml
 	url = https://github.com/ggml-org/ggml
+[submodule "deps/usearch"]
+	path = deps/usearch
+	url = https://github.com/unum-cloud/usearch
