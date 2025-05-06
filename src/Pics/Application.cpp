@@ -2,17 +2,20 @@
 #include "Debug.h"
 #include "ImageUtils.h"
 
-#include <dlfcn.h>
+#include "spdlog/fmt/bundled/base.h"
+#include "spdlog/spdlog.h"
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+
 #include <renderdoc_app.h>
-#include <spdlog/spdlog.h>
-#include <imgui.h>
-#include <imgui_impl_glfw.h>
-#include <imgui_impl_opengl3.h>
+#include <dlfcn.h>
 
 #include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <fstream>
+#include <thread>
 
 json create_default_config() {
 	// clang-format off
@@ -67,15 +70,22 @@ Application::Application()
 	config_path = ROOT_DIR "/config.json";
 	load_config();
 
-	db.executeSQL(R"(
-		CREATE TABLE IF NOT EXISTS images (
+	db.executeCommand(R"(
+		CREATE TABLE IF NOT EXISTS Images (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            path TEXT NOT NULL,
+			path TEXT NOT NULL UNIQUE,
 			atlas_path TEXT NOT NULL,
-            atlas_x INTEGER NOT NULL,
-            atlas_y INTEGER NOT NULL
-		)
+			atlas_index INTEGER NOT NULL
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_imagepath ON Images(path);
+
+		CREATE TABLE IF NOT EXISTS Atlas (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			atlas_path TEXT NOT NULL UNIQUE,
+			idx INTEGER NOT NULL,
+			image_count INTEGER NOT NULL DEFAULT 0
+		);
 		)");
 
 	SignalBus::getInstance();
@@ -83,9 +93,9 @@ Application::Application()
 	glfwSetErrorCallback(glfw_error_callback);
 	ASSERT(glfwInit() && "Failed to initialize GLFW");
 
-	const char *glsl_version = "#version 400";
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+	const char *glsl_version = "#version 330";
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // 3.2+ only
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);		   // 3.0+ only
 	// glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
@@ -111,8 +121,14 @@ Application::Application()
 	glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &maxLayers);
 	SPDLOG_INFO("Maximum texture array layers supported: {}", maxLayers);
 
-	fs::path imageRootPath = std::string(ROOT_DIR) + config["images"]["paths"][0].get<std::string>();
-	imageListThread = std::thread(listImages, std::ref(imageRootPath), std::ref(imagePaths));
+	/* Functions to run on other threads:
+		- Look for new images, create their atlas and add them to the database: discoverImages();
+		- Load the atlases and create some data structure to represent how they will display: loadAtlas();
+		- Load model and (vector) index any images that haven't been indexed yet and keep model graphs for image and text in memory: createModelGraph();
+	*/
+	discoverThread = std::thread(discoverImages);
+	std::vector<std::string> _a;
+	atlasThread = std::thread(loadAtlas, _a);
 
 	ImGui::CreateContext();
 	ImGuiIO &io = ImGui::GetIO();
@@ -144,7 +160,8 @@ Application::Application()
 }
 
 Application::~Application() {
-	imageListThread.join();
+	discoverThread.join();
+	atlasThread.join();
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();
@@ -213,19 +230,19 @@ void Application::start() {
 
 		int inRow = cells;
 
-		for (auto const &[image, texture] : imageTextures) {
+		for (auto const &[image, texture] : atlasTextures) {
 			// #ifdef _WIN32
 			// 			ImGui::Text("Path: %ls", image.c_str());
 			// #else
 			// 			ImGui::Text("Path: %s", image.c_str());
 			// #endif
-			if (!texture.initialized) {
-				auto load_start = std::chrono::high_resolution_clock::now();
-				initializeTexture(image);
-				auto load_end = std::chrono::high_resolution_clock::now();
-				std::chrono::duration<double> duration = load_end - load_start;
-				maxLoadTime = std::max(maxLoadTime, duration.count());
-			}
+			// if (!texture.initialized) {
+			// 	auto load_start = std::chrono::high_resolution_clock::now();
+			// 	initializeTexture(image);
+			// 	auto load_end = std::chrono::high_resolution_clock::now();
+			// 	std::chrono::duration<double> duration = load_end - load_start;
+			// 	maxLoadTime = std::max(maxLoadTime, duration.count());
+			// }
 			ImGui::Image((ImTextureID)(texture.textureID), ImVec2(224, 224), texture.uv0, texture.uv1);
 			if (--inRow) {
 				ImGui::SameLine();
@@ -266,6 +283,6 @@ void Application::start() {
 	SignalBus::getInstance().appRunningM = false;
 }
 
-GLFWwindow *Application::getWindow() {
-	return window;
+json Application::getConfig() {
+	return config;
 }

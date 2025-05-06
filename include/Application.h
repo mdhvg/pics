@@ -3,13 +3,14 @@
 #include "SQLiteHelper.h"
 #include "GLJob.h"
 
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
+#include "glad/glad.h"
+#include "GLFW/glfw3.h"
+#include "nlohmann/json.hpp"
+
 #include <filesystem>
-#include <nlohmann/json.hpp>
 #include <thread>
 
-#include "renderdoc_app.h"
+#include <renderdoc_app.h>
 #include <dlfcn.h>
 inline RENDERDOC_API_1_6_0 *rdoc_api = NULL;
 
@@ -19,14 +20,15 @@ namespace fs = std::filesystem;
 class Application {
   public:
 	static Application &getInstance();
-	GLFWwindow *getWindow();
+	json getConfig();
 
 	void start();
 
 	~Application();
 
-	std::unordered_map<fs::path, ImageTexture> imageTextures;
+	std::unordered_map<fs::path, ImageTexture> atlasTextures;
 	GLJobQ glJobQ;
+	DBWrapper db;
 
   private:
 	json config;
@@ -35,14 +37,12 @@ class Application {
 
 	bool running = true;
 
-	std::thread imageListThread;
+	std::thread discoverThread;
+	std::thread atlasThread;
 	std::vector<fs::path> imagePaths;
-
-	DBWrapper db;
 
 	static Application &instance;
 	Application();
-
 	Application(const Application &) = delete;
 	Application &operator=(const Application &) = delete;
 

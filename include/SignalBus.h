@@ -5,7 +5,6 @@ class SignalBus {
 	static SignalBus &getInstance();
 
 	std::atomic<bool> appRunningM{ true };
-	~SignalBus() = default;
 
   private:
 	SignalBus() = default;

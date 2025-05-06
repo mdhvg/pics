@@ -12,7 +12,9 @@ struct DBWrapper {
 
 	DBWrapper(const char *filename);
 	~DBWrapper();
-	void executeSQL(const std::string command);
+	void executeCommand(const std::string command,
+						sqlite3_callback callback = nullptr,
+						void *data = nullptr);
 };
 
 #endif // !SQLITE_HELPER

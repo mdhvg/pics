@@ -5,7 +5,9 @@
 
 class GLJob {
   public:
-	GLJob(std::function<void()> func, const std::string name = "", bool timeIt = false);
+	GLJob(std::function<void()> func,
+		  const std::string name = "",
+		  bool timeIt = false);
 	void execute();
 
   private:

@@ -13,7 +13,7 @@ void GLJob::execute() {
 		jobFunc();
 		auto end = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<double> duration = end - start;
-		SPDLOG_INFO("{} executed in: {:.6f} seconds", (funcName.size() ? funcName : "OpenGL Function"), duration.count());
+		SPDLOG_INFO("{} GLJob executed in: {:.6f} seconds", (funcName.size() ? funcName : "OpenGL Function"), duration.count());
 		return;
 	}
 	jobFunc();
