@@ -7,5 +7,9 @@ test_imgs
 *.json
 .cache
 imgui.ini
+*.sqlite
+.atlas
+clip-load
+Testing
 
 .vs

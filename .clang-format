@@ -8,9 +8,10 @@ LineEnding: LF
 
 # Don't collapse short things into one line
 AllowShortBlocksOnASingleLine: false
-AllowShortFunctionsOnASingleLine: None
+AllowShortFunctionsOnASingleLine: false
 AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
+AllowShortLambdasOnASingleLine: false
 
 # Brace formatting style: func() {
 BreakBeforeBraces: Attach
@@ -39,5 +40,5 @@ SpacesInContainerLiterals: true
 SpaceBeforeParens: ControlStatements
 
 # Misc formatting
-ColumnLimit: 0
+ColumnLimit: 80
 SortIncludes: false

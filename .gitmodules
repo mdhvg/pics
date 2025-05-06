@@ -20,3 +20,6 @@
 [submodule "deps/usearch"]
 	path = deps/usearch
 	url = https://github.com/unum-cloud/usearch
+[submodule "deps/googletest"]
+	path = deps/googletest
+	url = https://github.com/google/googletest.git
