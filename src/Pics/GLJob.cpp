@@ -1,27 +1,47 @@
 #include "GLJob.h"
+#include "SignalBus.h"
+
 #include "spdlog/spdlog.h"
 
 #include <chrono>
+#include <mutex>
 
-GLJob::GLJob(std::function<void()> func, const std::string name, bool timeIt)
-	: funcName(name), timeIt(timeIt), jobFunc(func) {
+GLJob::GLJob(std::function<void()> func,
+			 const std::string name,
+			 bool timeIt,
+			 std::mutex *end)
+	: funcName(name), clock(timeIt), endMutex(end), jobFunc(func) {
 }
 
 void GLJob::execute() {
-	if (timeIt) {
+	if (clock) {
 		auto start = std::chrono::high_resolution_clock::now();
 		jobFunc();
 		auto end = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<double> duration = end - start;
-		SPDLOG_INFO("{} GLJob executed in: {:.6f} seconds", (funcName.size() ? funcName : "OpenGL Function"), duration.count());
-		return;
+		SPDLOG_INFO("{} GLJob executed in: {:.6f} seconds",
+					(funcName.size() ? funcName : "OpenGL Function"),
+					duration.count());
+	} else {
+		jobFunc();
 	}
-	jobFunc();
+	if (endMutex)
+		endMutex->unlock();
+}
+
+void GLJob::reject() {
+	if (endMutex)
+		endMutex->unlock();
 }
 
 void GLJobQ::push(std::shared_ptr<GLJob> job) {
 	std::lock_guard<std::mutex> lock(qMutex);
-	jobQ.push(job);
+	SignalBus &bus = SignalBus::getInstance();
+	if (!bus.appRunningM) {
+		job->reject();
+	} else {
+		jobQ.push(job);
+	}
 }
 
 bool GLJobQ::empty() {

@@ -1,7 +1,8 @@
-#include "ImageTexture.h"
+#include "ImageUtils.h"
 #include "SignalBus.h"
 #include "SQLiteHelper.h"
 #include "GLJob.h"
+#include "Worker.h"
 
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
@@ -12,6 +13,7 @@
 
 #include <renderdoc_app.h>
 #include <dlfcn.h>
+#include <unordered_map>
 inline RENDERDOC_API_1_6_0 *rdoc_api = NULL;
 
 using json = nlohmann::json;
@@ -23,11 +25,16 @@ class Application {
 	json getConfig();
 
 	void start();
+	void loadImages();
 
 	~Application();
 
-	std::unordered_map<fs::path, ImageTexture> atlasTextures;
+	// TODO: Need a different method to implement atlas texturing
+	std::vector<ImageData> imageTextures;
+	std::unordered_map<fs::path, GLuint> atlasTextures;
+
 	GLJobQ glJobQ;
+
 	DBWrapper db;
 
   private:
@@ -37,9 +44,8 @@ class Application {
 
 	bool running = true;
 
-	std::thread discoverThread;
-	std::thread atlasThread;
-	std::vector<fs::path> imagePaths;
+	Worker discoverThread;
+	Worker atlasThread;
 
 	static Application &instance;
 	Application();

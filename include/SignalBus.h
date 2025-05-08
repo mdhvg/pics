@@ -1,4 +1,18 @@
+#pragma once
+
 #include <atomic>
+#include <string>
+#include <queue>
+
+enum SignalConsumer {
+	ALL,
+	ATLAS_LOADER,
+};
+
+struct Signal {
+	std::string message;
+	SignalConsumer receiver;
+};
 
 class SignalBus {
   public:

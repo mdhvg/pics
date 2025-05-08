@@ -7,12 +7,16 @@ class GLJob {
   public:
 	GLJob(std::function<void()> func,
 		  const std::string name = "",
-		  bool timeIt = false);
+		  bool timeIt = false,
+		  std::mutex *end = nullptr);
+
 	void execute();
+	void reject();
 
   private:
 	const std::string funcName;
-	bool timeIt;
+	bool clock;
+	std::mutex *endMutex;
 	std::function<void()> jobFunc;
 };
 

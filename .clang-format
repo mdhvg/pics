@@ -34,7 +34,7 @@ BinPackParameters: false
 AllowAllConstructorInitializersOnNextLine: false
 
 # Comments & whitespace
-ReflowComments: false
+ReflowComments: true
 Cpp11BracedListStyle: false
 SpacesInContainerLiterals: true
 SpaceBeforeParens: ControlStatements
@@ -42,3 +42,5 @@ SpaceBeforeParens: ControlStatements
 # Misc formatting
 ColumnLimit: 80
 SortIncludes: false
+
+BreakTemplateDeclarations: Yes

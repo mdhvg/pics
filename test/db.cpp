@@ -51,6 +51,7 @@ TEST_F(TestQueries, SelectImages) {
 			return 0;
 		},
 		&result);
+	fmt::println("Result\n{}", result);
 	EXPECT_GE(result.size(), 0);
 }
 

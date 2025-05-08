@@ -1,12 +1,10 @@
 #include "ImageUtils.h"
 #include "Debug.h"
 #include "Application.h"
-#include "GLFW/glfw3.h"
 #include "GLUtils.h"
 #include "SQLiteHelper.h"
 #include "fmt/core.h"
 #include "spdlog/fmt/bundled/format.h"
-#include "sqlite3.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -16,6 +14,7 @@
 #include <queue>
 #include <glad/glad.h>
 
+#include <string>
 #include <thread>
 #include <chrono>
 
@@ -34,7 +33,8 @@
 
 // 	stbi_set_flip_vertically_on_load(1);
 
-// 	unum::usearch::metric_punned_t metric(786, unum::usearch::metric_kind_t::cos_k, unum::usearch::scalar_kind_t::f32_k);
+// 	unum::usearch::metric_punned_t metric(786,
+// unum::usearch::metric_kind_t::cos_k, unum::usearch::scalar_kind_t::f32_k);
 // 	auto index = unum::usearch::index_dense_t::make(metric);
 
 // 	// TODO: Document about max directory traversal levels = 15
@@ -89,7 +89,6 @@ unsigned char *loadAndScaleThumbnail(fs::path &imagePath) {
 }
 
 void createAtlas(std::queue<fs::path> &newImagePaths,
-				 int newImageCount,
 				 LastAtlasInfo &info,
 				 DBWrapper &db) {
 	std::mutex finish;
@@ -99,20 +98,23 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 	if (!info.complete) {
 		newImages -= info.imageCount;
 	}
-	newImages = std::min(newImages, newImageCount);
+	int _sz = newImagePaths.size();
+	newImages = std::min(newImages, _sz);
 	std::vector<unsigned char *> thumbnailData(newImages);
 
 	const fs::path atlasDir = ROOT_DIR "/.atlas";
+	const fs::path atlasPath =
+		fmt::format("{}/atlas_{}.png", atlasDir.string(), info.index);
 
 	for (int i = 0; i < newImages; i++) {
 		auto &current = newImagePaths.front();
 		thumbnailData[i] = loadAndScaleThumbnail(current);
+		// TODO: Create into batch query
 		db.executeCommand(
 			fmt::format("INSERT INTO Images(path, atlas_path, atlas_index) "
-						"VALUES('{}', '{}/atlas_{}.png', {});",
+						"VALUES('{}', '{}', {});",
 						current.string(),
-						atlasDir.string(),
-						info.index,
+						atlasPath.string(),
 						info.imageCount + i));
 		newImagePaths.pop();
 	}
@@ -125,12 +127,7 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 	// stbi_set_flip_vertically_on_load(0);
 	if (!info.complete) {
 		prevAtlasData = stbi_load(
-			fmt::format("{}/atlas_{}.png", atlasDir.string(), info.index)
-				.c_str(),
-			&atlasWidth,
-			&atlasHeight,
-			&atlasChannels,
-			4);
+			atlasPath.c_str(), &atlasWidth, &atlasHeight, &atlasChannels, 4);
 	}
 	GLuint fbTex;
 	std::shared_ptr<GLJob> previousAtlasJob =
@@ -141,7 +138,7 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 			if (!info.complete) {
 				GLCall(glTexImage2D(GL_TEXTURE_2D,
 									0,
-									GL_RGBA8,
+									GL_RGBA,
 									2240,
 									2240,
 									0,
@@ -151,7 +148,7 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 			} else {
 				GLCall(glTexImage2D(GL_TEXTURE_2D,
 									0,
-									GL_RGBA8,
+									GL_RGBA,
 									2240,
 									2240,
 									0,
@@ -376,37 +373,39 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 	// TODO: Make 224 variable
 	unsigned char *atlasData = new unsigned char[2240 * 2240 * 4];
 	std::shared_ptr<GLJob> readJob = std::make_shared<GLJob>(
-		[&fbo, &atlasData, &finish]() {
+		[&app, &atlasPath, &fbo, &atlasData, &fbTex]() {
 			GLCall(glBindFramebuffer(GL_FRAMEBUFFER, fbo));
 			GLCall(glReadPixels(
 				0, 0, 2240, 2240, GL_RGBA, GL_UNSIGNED_BYTE, atlasData));
-			finish.unlock();
+			// Delete framebuffer after use
+			GLCall(glDeleteFramebuffers(1, &fbo));
+			// If atlas already exists on GPU, delete it and update it with new
+			// one
+			if (app.atlasTextures.find(atlasPath) != app.atlasTextures.end() &&
+				app.atlasTextures[atlasPath]) { // exists and not 0
+				GLCall(glDeleteTextures(1, &(app.atlasTextures[atlasPath])));
+			}
+			app.atlasTextures[atlasPath] = fbTex;
 		},
 		"AtlasCopy",
-		true);
+		true,
+		&finish);
 	app.glJobQ.push(readJob);
 	finish.lock();
 	if (!fs::exists(atlasDir)) {
 		fs::create_directories(atlasDir);
 	}
 	stbi_flip_vertically_on_write(1);
-	stbi_write_png(
-		fmt::format("{}/atlas_{}.png", atlasDir.string(), info.index).c_str(),
-		2240,
-		2240,
-		4,
-		atlasData,
-		0);
+	stbi_write_png(atlasPath.c_str(), 2240, 2240, 4, atlasData, 0);
 	delete[] atlasData;
 	db.executeCommand(
 		fmt::format(R"(INSERT INTO Atlas (atlas_path, idx, image_count) 
-		VALUES ('{}/atlas_{}.png', {}, {})
+		VALUES ('{}', {}, {})
 		ON CONFLICT(atlas_path) 
 		DO UPDATE SET 
     	idx = excluded.idx, 
     	image_count = excluded.image_count;)",
-					atlasDir.string(),
-					info.index,
+					atlasPath.string(),
 					info.index,
 					newImages + info.imageCount));
 }
@@ -414,13 +413,11 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 // void loadImage(fs::path imagePath) {
 // #ifdef _WIN32
 // 	auto path = imagePath.u8string();
-// 	auto s = std::string(reinterpret_cast<const char *>(path.data()), path.size());
-// #else
-// 	auto s = imagePath.string();
-// #endif
-// 	int width, height, channels;
-// 	float *pixelData = stbi_loadf(s.c_str(), &width, &height, &channels, 4);
-// 	ASSERT(pixelData != nullptr && fmt::format("Couldn't load image: {}", s).c_str());
+// 	auto s = std::string(reinterpret_cast<const char *>(path.data()),
+// path.size()); #else 	auto s = imagePath.string(); #endif 	int width,
+// height, channels; 	float *pixelData = stbi_loadf(s.c_str(), &width,
+// &height, &channels, 4); 	ASSERT(pixelData != nullptr && fmt::format("Couldn't
+// load image: {}", s).c_str());
 
 // 	const float aspect = (float)width / (float)height;
 
@@ -440,8 +437,8 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 
 // 	// TODO: Make number of channels also dependent on kind of image
 // 	float *resizedPixelData = new float[newHeight * newWidth * 4];
-// 	stbir_resize_float_linear(pixelData, width, height, 0, resizedPixelData, newWidth, newHeight, 0, STBIR_RGBA);
-// 	stbi_image_free(pixelData);
+// 	stbir_resize_float_linear(pixelData, width, height, 0, resizedPixelData,
+// newWidth, newHeight, 0, STBIR_RGBA); 	stbi_image_free(pixelData);
 
 // 	float uvX = (newWidth - 224.0f) / (newWidth * 2.0f);
 // 	float uvY = (newHeight - 224.0f) / (newHeight * 2.0f);
@@ -469,15 +466,14 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 // 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 // 	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-// 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, t.width, t.height, 0, GL_RGBA, GL_FLOAT, t.data);
-// 	stbi_image_free(t.data);
-// 	t.initialized = true;
+// 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, t.width, t.height, 0, GL_RGBA,
+// GL_FLOAT, t.data); 	stbi_image_free(t.data); 	t.initialized = true;
 // }
 
-// void listImagesHelper(fs::path &dir, std::vector<fs::path> &imagePaths, std::vector<fs::path> &pending, int &atlasIndex) {
-// 	for (const fs::path &entry : fs::directory_iterator{ dir }) {
-// 		if (fs::is_directory(entry)) {
-// 			pending.push_back(entry);
+// void listImagesHelper(fs::path &dir, std::vector<fs::path> &imagePaths,
+// std::vector<fs::path> &pending, int &atlasIndex) { 	for (const fs::path
+// &entry : fs::directory_iterator{ dir }) { 		if (fs::is_directory(entry))
+// { 			pending.push_back(entry);
 // 		}
 // 		if (entry.extension() == ".jpg" || entry.extension() == ".png") {
 // 			auto path = fs::absolute(entry);
@@ -553,7 +549,6 @@ void discoverImages() {
 	stbi_set_flip_vertically_on_load(1);
 
 	// Find images
-	int newImageCount = 0;
 	std::queue<fs::path> newImagePaths;
 	std::mutex imagePathMutex;
 
@@ -565,7 +560,7 @@ void discoverImages() {
 	std::queue<std::string> pending;
 	for (const auto &path :
 		 config["images"]["paths"].get<std::vector<std::string>>()) {
-		pending.push(ROOT_DIR + path);
+		pending.push(path);
 	}
 
 	int currentDepth = 0;
@@ -589,19 +584,20 @@ void discoverImages() {
 					}
 					imagePathMutex.lock();
 					newImagePaths.push(fs::absolute(entry));
-					newImageCount++;
 					imagePathMutex.unlock();
 				}
 				// Create their atlas when image count >= 100
-				if (newImageCount >= IMAGE_BATCH_SIZE) {
-					// Check the Atlas table to find last atlas index and if there are any atlases that less than IMAGE_BATCH_SIZE images
-					// if such exists (should be exactly 1 entry)
+				if (newImagePaths.size() >= IMAGE_BATCH_SIZE) {
+					// Check the Atlas table to find last atlas index and if
+					// there are any atlases that less than IMAGE_BATCH_SIZE
+					// images if such exists (should be exactly 1 entry)
 					LastAtlasInfo info = getLastAtlasInfo(app.db);
-					// load it as texture then create atlas on it (making sure not to overwrite previous tiles)
-					// otherwise just create a new atlas at new atlas index
-					// Save their info to database
-					createAtlas(newImagePaths, newImageCount, info, app.db);
+					// load it as texture then create atlas on it (making sure
+					// not to overwrite previous tiles) otherwise just create a
+					// new atlas at new atlas index Save their info to database
+					createAtlas(newImagePaths, info, app.db);
 					// Call loadAtlas(); if a new atlas is created
+					app.loadImages();
 				}
 			}
 			currentDepth++;
@@ -612,26 +608,74 @@ void discoverImages() {
 		}
 	}
 
-	if (newImageCount) {
+	if (newImagePaths.size()) {
 		LastAtlasInfo info = getLastAtlasInfo(app.db);
-		createAtlas(newImagePaths, newImageCount, info, app.db);
+		createAtlas(newImagePaths, info, app.db);
 	}
 }
 
-void loadAtlas(std::vector<std::string> atlasPaths) {
+void loadAtlas() {
+	std::mutex finish;
+	finish.lock();
 	Application &app = Application::getInstance();
-	if (!atlasPaths.size()) {
-		app.db.executeCommand(
-			"SELECT atlas_path FROM Atlas",
-			[](void *data, int, char **argv, char **) -> int {
-				auto *atlasPaths = (std::vector<std::string> *)data;
-				atlasPaths->push_back(argv[0]);
-				return 0;
-			},
-			&atlasPaths);
+	app.imageTextures.clear();
+	app.db.executeCommand(
+		"SELECT * FROM Images;",
+		[](void *data, int, char **argv, char **) -> int {
+			auto *imageTextues = (std::vector<ImageData> *)data;
+			imageTextues->push_back(
+				{ argv[1], argv[2], (unsigned int)std::stoi(argv[3]) });
+			return 0;
+		},
+		&(app.imageTextures));
+	for (const auto &img : app.imageTextures) {
+		if (app.atlasTextures.find(img.atlas_path) == app.atlasTextures.end()) {
+			app.atlasTextures[img.atlas_path] = 0;
+		}
 	}
-	std::vector<unsigned char *> atlasData(atlasPaths.size());
-	// for (const auto &path : atlasPaths) {
-	// 	1;
-	// }
+	std::vector<unsigned char *> atlasData(app.atlasTextures.size());
+	int _w, _h, _c;
+	for (auto &path : app.atlasTextures) {
+		unsigned char *data = stbi_load(path.first.c_str(), &_w, &_h, &_c, 4);
+		std::shared_ptr<GLJob> textureJob =
+			std::make_shared<GLJob>([data, &path]() {
+				GLuint tex;
+				GLCall(glGenTextures(1, &tex));
+				GLCall(glBindTexture(GL_TEXTURE_2D, tex));
+				GLCall(glTexImage2D(GL_TEXTURE_2D,
+									0,
+									GL_RGBA,
+									2240,
+									2240,
+									0,
+									GL_RGBA,
+									GL_UNSIGNED_BYTE,
+									data));
+				GLCall(glTexParameteri(
+					GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+				GLCall(glTexParameteri(
+					GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+				GLCall(glTexParameteri(
+					GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER));
+				GLCall(glTexParameteri(
+					GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER));
+				delete[] data;
+				path.second = tex;
+			});
+		app.glJobQ.push(textureJob);
+	}
+	std::shared_ptr<GLJob> unlockJob = std::make_shared<GLJob>(
+		[]() {
+		},
+		"",
+		false,
+		&finish);
+	app.glJobQ.push(unlockJob);
+	finish.lock();
+
+	for (auto &img : app.imageTextures) {
+		if (img.textureID == 0) {
+			img.textureID = app.atlasTextures[img.atlas_path];
+		}
+	}
 }

@@ -4,6 +4,7 @@
 #include "usearch/index.hpp"
 #include "usearch/index_dense.hpp"
 #include "SQLiteHelper.h"
+#include "imgui.h"
 
 #include <filesystem>
 #include <vector>
@@ -17,10 +18,19 @@ struct LastAtlasInfo {
 	bool complete = true;
 };
 
+struct ImageData {
+	// Variable names formatting here is same as in database
+	// unsigned int id;
+	std::string path;
+	std::string atlas_path;
+	unsigned int atlas_index = 0;
+	unsigned int textureID = 0;
+};
+
 /*
-* SEPARATE THREAD FUNCTIONS
-* - Might have to get mutex for glfwcontext if required access
-*/
+ * SEPARATE THREAD FUNCTIONS
+ * - Might have to get mutex for glfwcontext if required access
+ */
 void listImagesHelper(fs::path &dir,
 					  std::vector<fs::path> &imagePaths,
 					  std::vector<fs::path> &pending,
@@ -32,10 +42,9 @@ void discoverImages();
 
 unsigned char *loadAndScaleThumbnail(fs::path &imagePath);
 void createAtlas(std::queue<fs::path> &newImagePaths,
-				 int newImageCount,
 				 LastAtlasInfo &info,
 				 DBWrapper &db);
-void loadAtlas(std::vector<std::string> atlasPaths = {});
+void loadAtlas();
 // void initializeTexture(fs::path imagePath);
 
 #endif // IMAGE_UTILS_H
