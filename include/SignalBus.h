@@ -1,24 +1,15 @@
 #pragma once
 
+#include "Worker.h"
+
 #include <atomic>
-#include <string>
-#include <queue>
-
-enum SignalConsumer {
-	ALL,
-	ATLAS_LOADER,
-};
-
-struct Signal {
-	std::string message;
-	SignalConsumer receiver;
-};
 
 class SignalBus {
   public:
 	static SignalBus &getInstance();
 
-	std::atomic<bool> appRunningM{ true };
+	std::atomic<bool>		 appRunningM{ true };
+	ThreadSafeQ<std::string> textEncodeQ;
 
   private:
 	SignalBus() = default;

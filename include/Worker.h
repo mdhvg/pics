@@ -1,8 +1,11 @@
+#pragma once
+
 #include <condition_variable>
 #include <mutex>
 #include <thread>
 #include <functional>
 #include <string>
+#include <queue>
 
 // Variadic args variant
 // template <class... Args>
@@ -12,8 +15,8 @@ class Worker {
 	Worker(const Worker &) = delete;
 
 	Worker(std::function<void()> fn,
-		   const std::string name = "",
-		   bool timeIt = false);
+		   const std::string	 name = "",
+		   bool					 timeIt = false);
 	~Worker();
 
 	// Variadic args variant
@@ -28,12 +31,12 @@ class Worker {
   private:
 	void worker_thread();
 
-	bool ready{ false };
-	bool stop{ false };
-	std::mutex mutex;
+	bool					ready{ false };
+	bool					stop{ false };
+	std::mutex				mutex;
 	std::condition_variable cv;
-	std::thread thread;
-	std::function<void()> fn;
+	std::thread				thread;
+	std::function<void()>	fn;
 
 	// Variadic args variant
 	// std::function<void(Args... args)> fn;
@@ -41,5 +44,16 @@ class Worker {
 	// bool argsReady{ false };
 
 	const std::string funcName;
-	bool clock;
+	bool			  clock;
+};
+
+template <class T> class ThreadSafeQ {
+  public:
+	void			   push(std::shared_ptr<T> object);
+	bool			   empty();
+	std::shared_ptr<T> pop();
+
+  private:
+	std::mutex					   qMutex;
+	std::queue<std::shared_ptr<T>> Q;
 };

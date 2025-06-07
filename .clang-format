@@ -43,4 +43,8 @@ SpaceBeforeParens: ControlStatements
 ColumnLimit: 80
 SortIncludes: false
 
-BreakTemplateDeclarations: Yes
+# Settings for macro formatting
+AlignTrailingComments: true
+AlignConsecutiveMacros: true
+AlignConsecutiveDeclarations: true
+SpacesInCStyleCastParentheses: true

@@ -6,27 +6,28 @@
 class GLJob {
   public:
 	GLJob(std::function<void()> func,
-		  const std::string name = "",
-		  bool timeIt = false,
-		  std::mutex *end = nullptr);
+		  const std::string		name = "",
+		  bool					timeIt = false,
+		  std::mutex		   *end = nullptr);
 
 	void execute();
 	void reject();
 
   private:
-	const std::string funcName;
-	bool clock;
-	std::mutex *endMutex;
+	const std::string	  funcName;
+	bool				  clock;
+	std::mutex			 *endMutex;
 	std::function<void()> jobFunc;
 };
 
+// TODO: Make this a derived class from ThreadSafeQ
 class GLJobQ {
   public:
-	void push(std::shared_ptr<GLJob> job);
-	bool empty();
+	void				   push(std::shared_ptr<GLJob> job);
+	bool				   empty();
 	std::shared_ptr<GLJob> pop();
 
   private:
-	std::mutex qMutex;
+	std::mutex						   qMutex;
 	std::queue<std::shared_ptr<GLJob>> jobQ;
 };

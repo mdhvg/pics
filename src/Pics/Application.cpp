@@ -1,23 +1,19 @@
 #include "Application.h"
 #include "Debug.h"
 #include "ImageUtils.h"
+#include "ModelHandler.h"
 
-#include "spdlog/fmt/bundled/base.h"
-#include "spdlog/spdlog.h"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "spdlog/spdlog.h"
 
-#include <memory>
-#include <ranges>
-#include <renderdoc_app.h>
 #include <dlfcn.h>
+#include <renderdoc_app.h>
 
 #include <algorithm>
-#include <chrono>
 #include <cstring>
 #include <fstream>
-#include <thread>
 
 json create_default_config() {
 	// clang-format off
@@ -62,22 +58,28 @@ Application &Application::getInstance() {
 
 Application::Application()
 	: db(ROOT_DIR "/pics.sqlite"),
-	  /* Functions to run on other threads:
+	  /*
+	  Functions to run on other threads:
 			  - Look for new images, create their atlas and add them to the
-		 database: discoverImages();
+			  database: discoverImages();
 			  - Load the atlases and create some data structure to represent how
-		 they will display: loadAtlas();
+			  they will display: loadAtlas();
 			  - Load model and (vector) index any images that haven't been
-		 indexed yet and keep model graphs for image and text in memory:
-		 createModelGraph();
+			  indexed yet and keep model graphs for image and text in
+	  memory:createModelGraph();
+								- Load the image+text embedding model into
+	  desired hardware, query database for pending images to be indexed, index
+	  them and save those indexes. Wait for *AI* tasks and send response when
+	  required
 		  */
-	  discoverThread(discoverImages), atlasThread(loadAtlas) {
+	  discoverWorker(discoverImages), atlasWorker(loadAtlas),
+	  modelWorker(modelHandler) {
 
 	if (void *mod = dlopen("librenderdoc.so", RTLD_NOW | RTLD_NOLOAD)) {
 		pRENDERDOC_GetAPI RENDERDOC_GetAPI =
-			(pRENDERDOC_GetAPI)dlsym(mod, "RENDERDOC_GetAPI");
-		int ret =
-			RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_6_0, (void **)&rdoc_api);
+			( pRENDERDOC_GetAPI )dlsym(mod, "RENDERDOC_GetAPI");
+		int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_6_0,
+								   ( void ** )&rdoc_api);
 		ASSERT(ret == 1);
 	}
 
@@ -89,7 +91,8 @@ Application::Application()
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			path TEXT NOT NULL UNIQUE,
 			atlas_path TEXT NOT NULL,
-			atlas_index INTEGER NOT NULL
+			atlas_index INTEGER NOT NULL,
+      embedding INTEGER NOT NULL DEFAULT 0
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_imagepath ON Images(path);
@@ -101,6 +104,9 @@ Application::Application()
 			image_count INTEGER NOT NULL DEFAULT 0
 		);
 		)");
+
+	index = usrch::index_dense_t::make(
+		usrch::metric_punned_t(512, usrch::metric_kind_t::cos_k));
 
 	SignalBus::getInstance();
 
@@ -122,14 +128,14 @@ Application::Application()
 	glfwMakeContextCurrent(window);
 	glfwSwapInterval(1); // Enable vsync
 
-	ASSERT(gladLoadGLLoader((GLADloadproc)glfwGetProcAddress) &&
+	ASSERT(gladLoadGLLoader(( GLADloadproc )glfwGetProcAddress) &&
 		   "Failed to initialize OpenGL loader!");
 
-	SPDLOG_INFO("OpenGL Version: {}", (const char *)glGetString(GL_VERSION));
+	SPDLOG_INFO("OpenGL Version: {}", ( const char * )glGetString(GL_VERSION));
 	SPDLOG_INFO("GLSL Version: {}",
-				(const char *)glGetString(GL_SHADING_LANGUAGE_VERSION));
-	SPDLOG_INFO("GPU Vendor: {}", (const char *)glGetString(GL_VENDOR));
-	SPDLOG_INFO("Renderer: {}", (const char *)glGetString(GL_RENDERER));
+				( const char * )glGetString(GL_SHADING_LANGUAGE_VERSION));
+	SPDLOG_INFO("GPU Vendor: {}", ( const char * )glGetString(GL_VENDOR));
+	SPDLOG_INFO("Renderer: {}", ( const char * )glGetString(GL_RENDERER));
 	int maxTextureUnits;
 	glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &maxTextureUnits);
 	SPDLOG_INFO("Maximum texture units: {}", maxTextureUnits);
@@ -139,7 +145,7 @@ Application::Application()
 
 	ImGui::CreateContext();
 	ImGuiIO &io = ImGui::GetIO();
-	(void)io;
+	( void )io;
 	io.ConfigFlags |=
 		ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
 	io.ConfigFlags |=
@@ -183,16 +189,17 @@ Application::~Application() {
 }
 
 void Application::start() {
-	discoverThread.run();
-	atlasThread.run();
+	discoverWorker.run();
+	atlasWorker.run();
+	modelWorker.run();
 
 	float startTime = 0.0f;
-	char searchField[2048];
+	char  searchField[2048];
 	memset(searchField, 0, 2048);
 	double maxLoadTime = 0.0f;
 
-	float fps = 0.0f;
-	float minFPS = float(0b11111111111111111111111111111111);
+	float  fps = 0.0f;
+	float  minFPS = float(0b11111111111111111111111111111111);
 	ImVec2 cursor;
 
 	while (!glfwWindowShouldClose(window) || running) {
@@ -244,7 +251,8 @@ void Application::start() {
 		// #endif
 		ImGui::Text("Cursor pos: %.2fx, %2fy", cursor.x, cursor.y);
 		float widthAvail = ImGui::GetContentRegionAvail().x;
-		int cells = (int)(widthAvail / (224 + ImGui::GetStyle().ItemSpacing.x));
+		int	  cells =
+			( int )(widthAvail / (224 + ImGui::GetStyle().ItemSpacing.x));
 		cells = std::max(cells, 1);
 
 		float requiredWidth = (224 + ImGui::GetStyle().ItemSpacing.x) * cells;
@@ -256,13 +264,13 @@ void Application::start() {
 			// TODO: Make 224 a variable
 			int x = img.atlas_index % 10;
 			int y = img.atlas_index / 10;
-			ImGui::Image((ImTextureID)(img.textureID),
+			ImGui::Image(( ImTextureID )(img.textureID),
 						 ImVec2(224, 224),
 						 // BUG: Something's wrong causing images to show
 						 // upside-down, currently solving by flipping coords
 						 // TODO: Fix the image flipping issue
-						 ImVec2((float)x / 10, (float)(y + 1) / 10),
-						 ImVec2((float)(x + 1) / 10, (float)y / 10));
+						 ImVec2(( float )x / 10, ( float )(y + 1) / 10),
+						 ImVec2(( float )(x + 1) / 10, ( float )y / 10));
 			if (--inRow) {
 				ImGui::SameLine();
 			} else {
@@ -333,5 +341,5 @@ json Application::getConfig() {
 }
 
 void Application::loadImages() {
-	atlasThread.run();
+	atlasWorker.run();
 }

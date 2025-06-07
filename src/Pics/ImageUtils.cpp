@@ -1,22 +1,23 @@
 #include "ImageUtils.h"
-#include "Debug.h"
 #include "Application.h"
+#include "Debug.h"
 #include "GLUtils.h"
 #include "SQLiteHelper.h"
 #include "fmt/core.h"
+#include "glad/glad.h"
 #include "spdlog/fmt/bundled/format.h"
 
 #include <algorithm>
 #include <cstddef>
+#include <cstring>
 #include <filesystem>
 #include <memory>
 #include <mutex>
 #include <queue>
-#include <glad/glad.h>
 
+#include <chrono>
 #include <string>
 #include <thread>
-#include <chrono>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -46,7 +47,8 @@
 // 		for (int i = 0; i < numDirs; i++) {
 // 			fs::path current = pending[0];
 // 			pending.erase(pending.begin());
-// 			listImagesHelper(current, imagePaths, pending, atlasIndex);
+// 			listImagesHelper(current, imagePaths, pending,
+// atlasIndex);
 // 		}
 // 		currentLevel++;
 // 	}
@@ -56,7 +58,7 @@
 // 	createThumbnailAtlas(imagePaths, atlasIndex);
 // }
 
-unsigned char *loadAndScaleThumbnail(fs::path &imagePath) {
+unsigned char *loadAndScaleThumbnail(const fs::path &imagePath) {
 #ifdef _WIN32
 	auto path = imagePath.u8string();
 	auto s =
@@ -64,17 +66,17 @@ unsigned char *loadAndScaleThumbnail(fs::path &imagePath) {
 #else
 	auto s = imagePath.string();
 #endif
-	int width, height, channels;
+	int			   width, height, channels;
 	unsigned char *pixelData =
 		stbi_load(s.c_str(), &width, &height, &channels, 4);
 	ASSERT(pixelData != nullptr &&
 		   fmt::format("Couldn't load image: {}", s).c_str());
 	channels = 4;
 
-	int side = std::min(width, height);
+	int			   side = std::min(width, height);
 	unsigned char *croppedImage = new unsigned char[side * side * channels];
-	int xOffset = (width - side) / 2;
-	int yOffset = (height - side) / 2;
+	int			   xOffset = (width - side) / 2;
+	int			   yOffset = (height - side) / 2;
 	unsigned char *start = pixelData + (yOffset * width + xOffset) * channels;
 	memcpy(croppedImage, start, side * side * channels);
 	stbi_image_free(pixelData);
@@ -89,8 +91,8 @@ unsigned char *loadAndScaleThumbnail(fs::path &imagePath) {
 }
 
 void createAtlas(std::queue<fs::path> &newImagePaths,
-				 LastAtlasInfo &info,
-				 DBWrapper &db) {
+				 LastAtlasInfo		  &info,
+				 DBWrapper			  &db) {
 	std::mutex finish;
 	finish.lock();
 
@@ -122,14 +124,14 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 	Application &app = Application::getInstance();
 
 	// If texture is to be re-used, load previous atlas and bind it to fbTex
-	int atlasWidth, atlasHeight, atlasChannels;
+	int			   atlasWidth, atlasHeight, atlasChannels;
 	unsigned char *prevAtlasData = nullptr;
 	// stbi_set_flip_vertically_on_load(0);
 	if (!info.complete) {
 		prevAtlasData = stbi_load(
 			atlasPath.c_str(), &atlasWidth, &atlasHeight, &atlasChannels, 4);
 	}
-	GLuint fbTex;
+	GLuint				   fbTex;
 	std::shared_ptr<GLJob> previousAtlasJob =
 		std::make_shared<GLJob>([&fbTex, &info, prevAtlasData]() {
 			GLCall(glGenTextures(1, &fbTex));
@@ -172,7 +174,7 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 	app.glJobQ.push(previousAtlasJob);
 
 	// Create New framebuffer and textureArray
-	GLuint fbo, texArray;
+	GLuint				   fbo, texArray;
 	std::shared_ptr<GLJob> frameBufferJob =
 		std::make_shared<GLJob>([&fbo, &fbTex, &texArray]() {
 			GLCall(glGenFramebuffers(1, &fbo));
@@ -231,7 +233,7 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 		// clang-format on
 	};
 
-	GLuint vao;
+	GLuint				   vao;
 	std::shared_ptr<GLJob> bufferBindJob = std::make_shared<GLJob>([&vertices,
 																	&indices,
 																	&vao]() {
@@ -251,7 +253,7 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 			GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW));
 
 		GLCall(glVertexAttribPointer(
-			0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0));
+			0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), ( void * )0));
 		GLCall(glEnableVertexAttribArray(0));
 
 		GLCall(glVertexAttribPointer(1,
@@ -259,7 +261,7 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 									 GL_FLOAT,
 									 GL_FALSE,
 									 4 * sizeof(float),
-									 (void *)(2 * sizeof(float))));
+									 ( void * )(2 * sizeof(float))));
 		GLCall(glEnableVertexAttribArray(1));
 	});
 	app.glJobQ.push(bufferBindJob);
@@ -292,13 +294,13 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 	auto vertSrc = readSource(ROOT_DIR "/rsc/atlas.vert");
 	auto fragSrc = readSource(ROOT_DIR "/rsc/atlas.frag");
 
-	GLuint shaderProgram;
+	GLuint				   shaderProgram;
 	std::shared_ptr<GLJob> shaderCompileJob =
 		std::make_shared<GLJob>([&vertSrc, &fragSrc, &shaderProgram]() {
-			int status;
+			int	 status;
 			char infoLog[512];
 
-			GLuint vertID = glCreateShader(GL_VERTEX_SHADER);
+			GLuint		vertID = glCreateShader(GL_VERTEX_SHADER);
 			const char *vertSrcPtr = vertSrc.c_str();
 			GLCall(glShaderSource(vertID, 1, &vertSrcPtr, nullptr));
 			GLCall(glCompileShader(vertID));
@@ -310,7 +312,7 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 				ASSERT(false);
 			}
 
-			GLuint fragID = glCreateShader(GL_FRAGMENT_SHADER);
+			GLuint		fragID = glCreateShader(GL_FRAGMENT_SHADER);
 			const char *fragSrcPtr = fragSrc.c_str();
 			GLCall(glShaderSource(fragID, 1, &fragSrcPtr, nullptr));
 			GLCall(glCompileShader(fragID));
@@ -371,7 +373,7 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 
 	// Read framebuffer
 	// TODO: Make 224 variable
-	unsigned char *atlasData = new unsigned char[2240 * 2240 * 4];
+	unsigned char		  *atlasData = new unsigned char[2240 * 2240 * 4];
 	std::shared_ptr<GLJob> readJob = std::make_shared<GLJob>(
 		[&app, &atlasPath, &fbo, &atlasData, &fbTex]() {
 			GLCall(glBindFramebuffer(GL_FRAMEBUFFER, fbo));
@@ -416,16 +418,15 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 // 	auto s = std::string(reinterpret_cast<const char *>(path.data()),
 // path.size()); #else 	auto s = imagePath.string(); #endif 	int width,
 // height, channels; 	float *pixelData = stbi_loadf(s.c_str(), &width,
-// &height, &channels, 4); 	ASSERT(pixelData != nullptr && fmt::format("Couldn't
-// load image: {}", s).c_str());
+// &height, &channels, 4); 	ASSERT(pixelData != nullptr &&
+// fmt::format("Couldn't load image: {}", s).c_str());
 
 // 	const float aspect = (float)width / (float)height;
 
 // 	Application &app = Application::getInstance();
 
-// 	// TODO: Make the MAX_SIZE depend on atlas dimensions and pictures per atlas
-// 	const int MAX_SIDE = 224;
-// 	int newHeight, newWidth;
+// 	// TODO: Make the MAX_SIZE depend on atlas dimensions and pictures per
+// atlas 	const int MAX_SIDE = 224; 	int newHeight, newWidth;
 
 // 	if (height > width) {
 // 		newHeight = MAX_SIDE / aspect;
@@ -466,18 +467,19 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 // 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 // 	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-// 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, t.width, t.height, 0, GL_RGBA,
-// GL_FLOAT, t.data); 	stbi_image_free(t.data); 	t.initialized = true;
+// 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, t.width, t.height, 0,
+// GL_RGBA, GL_FLOAT, t.data); 	stbi_image_free(t.data); 	t.initialized =
+// true;
 // }
 
 // void listImagesHelper(fs::path &dir, std::vector<fs::path> &imagePaths,
 // std::vector<fs::path> &pending, int &atlasIndex) { 	for (const fs::path
-// &entry : fs::directory_iterator{ dir }) { 		if (fs::is_directory(entry))
-// { 			pending.push_back(entry);
+// &entry : fs::directory_iterator{ dir }) { 		if
+// (fs::is_directory(entry)) { 			pending.push_back(entry);
 // 		}
-// 		if (entry.extension() == ".jpg" || entry.extension() == ".png") {
-// 			auto path = fs::absolute(entry);
-// 			imagePaths.push_back(path);
+// 		if (entry.extension() == ".jpg" || entry.extension() == ".png")
+// { 			auto path = fs::absolute(entry);
+// imagePaths.push_back(path);
 // 			// loadImage(path);
 // 		}
 // 		if (imagePaths.size() >= IMAGE_BATCH_SIZE) {
@@ -499,7 +501,7 @@ bool imageExists(const fs::path &path, DBWrapper &db) {
 		fmt::format("SELECT path FROM Images WHERE path = '{}' LIMIT 1;",
 					path.string()),
 		[](void *data, int, char **argv, char **) -> int {
-			bool *exists = (bool *)data;
+			bool *exists = ( bool * )data;
 			*exists = true;
 			return 0;
 		},
@@ -521,7 +523,7 @@ LastAtlasInfo getLastAtlasInfo(DBWrapper &db) {
 	db.executeCommand(
 		query1,
 		[](void *data, int, char **argv, char **) -> int {
-			LastAtlasInfo *info = (LastAtlasInfo *)data;
+			LastAtlasInfo *info = ( LastAtlasInfo * )data;
 			info->complete = false;
 			info->index = std::atoi(argv[0]);
 			info->imageCount = std::atoi(argv[1]);
@@ -534,7 +536,7 @@ LastAtlasInfo getLastAtlasInfo(DBWrapper &db) {
 		db.executeCommand(
 			query2,
 			[](void *data, int, char **argv, char **) -> int {
-				LastAtlasInfo *info = (LastAtlasInfo *)data;
+				LastAtlasInfo *info = ( LastAtlasInfo * )data;
 				info->imageCount = 0;
 				info->index = std::atoi(argv[0]) + 1;
 				return 0;
@@ -550,12 +552,12 @@ void discoverImages() {
 
 	// Find images
 	std::queue<fs::path> newImagePaths;
-	std::mutex imagePathMutex;
+	std::mutex			 imagePathMutex;
 
 	SignalBus &bus = SignalBus::getInstance();
 
 	Application &app = Application::getInstance();
-	json config = app.getConfig();
+	json		 config = app.getConfig();
 
 	std::queue<std::string> pending;
 	for (const auto &path :
@@ -622,9 +624,9 @@ void loadAtlas() {
 	app.db.executeCommand(
 		"SELECT * FROM Images;",
 		[](void *data, int, char **argv, char **) -> int {
-			auto *imageTextues = (std::vector<ImageData> *)data;
+			auto *imageTextues = ( std::vector<ImageData> * )data;
 			imageTextues->push_back(
-				{ argv[1], argv[2], (unsigned int)std::stoi(argv[3]) });
+				{ argv[1], argv[2], ( unsigned int )std::stoi(argv[3]) });
 			return 0;
 		},
 		&(app.imageTextures));
@@ -634,7 +636,7 @@ void loadAtlas() {
 		}
 	}
 	std::vector<unsigned char *> atlasData(app.atlasTextures.size());
-	int _w, _h, _c;
+	int							 _w, _h, _c;
 	for (auto &path : app.atlasTextures) {
 		unsigned char *data = stbi_load(path.first.c_str(), &_w, &_h, &_c, 4);
 		std::shared_ptr<GLJob> textureJob =
@@ -678,4 +680,56 @@ void loadAtlas() {
 			img.textureID = app.atlasTextures[img.atlas_path];
 		}
 	}
+}
+
+float *copyAsPlanar(float *data, int image_size, int count) {
+	float *imageData = new float[image_size * image_size * 3 * count];
+	int	   num_pixels = image_size * image_size;
+
+	for (int i = 0; i < count; i++) {
+		float *rPlane = imageData + num_pixels * (3 * i + 0);
+		float *gPlane = imageData + num_pixels * (3 * i + 1);
+		float *bPlane = imageData + num_pixels * (3 * i + 2);
+
+		for (int pixel = 0; pixel < num_pixels; pixel++) {
+			rPlane[pixel] = data[pixel * 3 + 0 + i * 3 * num_pixels];
+			gPlane[pixel] = data[pixel * 3 + 1 + i * 3 * num_pixels];
+			bPlane[pixel] = data[pixel * 3 + 2 + i * 3 * num_pixels];
+		}
+	}
+
+	return imageData;
+}
+
+float *preprocessNImages(std::vector<std::pair<fs::path, int>> &imagePaths,
+						 int									start,
+						 int									count,
+						 int									image_size) {
+	float *imageData = new float[image_size * image_size * 3 * count];
+	int	   idx = 0;
+	int	   _w, _h, _c;
+	float *_data;
+	for (int i = start; i < count; i++) {
+		_data = stbi_loadf(imagePaths[i].first.c_str(), &_w, &_h, &_c, 3);
+		stbir_resize_float_linear(_data,
+								  _w,
+								  _h,
+								  0,
+								  imageData +
+									  (idx * image_size * image_size * 3),
+								  image_size,
+								  image_size,
+								  0,
+								  STBIR_RGB);
+		stbi_image_free(_data);
+		idx++;
+	}
+
+	float *planarData = copyAsPlanar(imageData, image_size, count);
+	// unsigned char* planarUint = new unsigned char[224 * 224 * 3 * 4];
+	// for (int i = 0; i < 224 * 224 * 4 * 3; i++) {
+	//   planarUint[i] = planarData[i] * 225.0f;
+	// }
+	delete[] imageData;
+	return planarData;
 }

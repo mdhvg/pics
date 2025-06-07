@@ -65,3 +65,22 @@ void Worker::worker_thread() {
 		lock.lock();
 	}
 }
+
+template <class T> void ThreadSafeQ<T>::push(std::shared_ptr<T> job) {
+	std::lock_guard<std::mutex> lock(qMutex);
+	Q.push(job);
+}
+
+template <class T> bool ThreadSafeQ<T>::empty() {
+	std::lock_guard<std::mutex> lock(qMutex);
+	return Q.empty();
+}
+
+template <class T> std::shared_ptr<T> ThreadSafeQ<T>::pop() {
+	std::lock_guard<std::mutex> lock(qMutex);
+	if (Q.empty())
+		return nullptr;
+	auto job = Q.front();
+	Q.pop();
+	return job;
+}

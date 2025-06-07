@@ -51,7 +51,7 @@ set(GTEST_DIR "${LIB_DIR}/googletest")
 enable_testing()
 
 add_subdirectory("${GTEST_DIR}")
-file(GLOB_RECURSE TEST_SRC CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/test/*.cpp")
+file(GLOB_RECURSE TEST_SRC CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/tests/*.cpp")
 
 file(GLOB_RECURSE MAIN_SRC CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/Pics/*.cpp")
 add_executable("${CMAKE_PROJECT_NAME}Tests" ${TEST_SRC} ${MAIN_SRC})
