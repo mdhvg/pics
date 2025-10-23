@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Worker.h"
+#include "Thread/threadpool.h"
 
 #include <atomic>
 
@@ -8,8 +8,7 @@ class SignalBus {
   public:
 	static SignalBus &getInstance();
 
-	std::atomic<bool>		 appRunningM{ true };
-	ThreadSafeQ<std::string> textEncodeQ;
+	std::atomic<bool> appRunningM{ true };
 
   private:
 	SignalBus() = default;

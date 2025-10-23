@@ -1,8 +1,9 @@
-#include "ImageUtils.h"
-#include "SignalBus.h"
+#include "ImageManager.h"
 #include "SQLiteHelper.h"
 #include "GLJob.h"
-#include "Worker.h"
+#include "Window/Window.h"
+#include "Window/UILayer.h"
+#include "Thread/threadpool.h"
 
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
@@ -12,11 +13,13 @@
 #include "clip.h"
 
 #include <cstddef>
+#include <memory>
+#include <unordered_map>
 #include <filesystem>
 
 #include <renderdoc_app.h>
 #include <dlfcn.h>
-#include <unordered_map>
+#include <utility>
 inline RENDERDOC_API_1_6_0 *rdoc_api = NULL;
 
 using json = nlohmann::json;
@@ -27,40 +30,51 @@ namespace fs = std::filesystem;
 
 class Application {
   public:
-	static Application &getInstance();
-	json				getConfig();
+	static Application &get_instance();
+	json getConfig();
 
 	void start();
 	void loadImages();
 
+	template <class F>
+	inline void async_job(F &&task, const std::string &name = "") {
+		pool.enqueue(std::forward<F>(task), name);
+	}
+
 	~Application();
 
 	// TODO: Need a different method to implement atlas texturing
-	std::vector<ImageData>				 imageTextures;
-	std::unordered_map<fs::path, GLuint> atlasTextures;
+	// std::vector<ImageData> imageTextures;
+	// std::unordered_map<fs::path, GLuint> atlasTextures;
 
 	GLJobQ glJobQ;
 
-	DBWrapper			 db;
 	usrch::index_dense_t index;
-	clip_ctx			*clip = nullptr;
+	clip_ctx *clip = nullptr;
+
+	DBWrapper db;
+	const char *dbPath = ROOT_DIR "/pics.sqlite";
+
+	ImageManager img_man;
 
   private:
-	json	 config;
-	bool	 config_dirty;
+	json config;
+	bool config_dirty;
 	fs::path config_path;
 
 	bool running = true;
-
-	Worker discoverWorker;
-	Worker atlasWorker;
-	Worker modelWorker;
 
 	static Application &instance;
 	Application();
 	Application(const Application &) = delete;
 	Application &operator=(const Application &) = delete;
 
-	GLFWwindow *window;
-	void		load_config();
+	Window window;
+	UILayer uiLayer;
+
+	ThreadPool pool;
+
+	void process_GL_job();
+
+	void load_config();
 };

@@ -7,10 +7,9 @@
 #include <mutex>
 
 GLJob::GLJob(std::function<void()> func,
-			 const std::string name,
-			 bool timeIt,
-			 std::mutex *end)
-	: funcName(name), clock(timeIt), endMutex(end), jobFunc(func) {
+	const std::string name,
+	std::mutex *end)
+	: funcName(name), clock(!name.empty()), endMutex(end), jobFunc(func) {
 }
 
 void GLJob::execute() {
@@ -20,8 +19,8 @@ void GLJob::execute() {
 		auto end = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<double> duration = end - start;
 		SPDLOG_INFO("{} GLJob executed in: {:.6f} seconds",
-					(funcName.size() ? funcName : "OpenGL Function"),
-					duration.count());
+			(funcName.size() ? funcName : "OpenGL Function"),
+			duration.count());
 	} else {
 		jobFunc();
 	}

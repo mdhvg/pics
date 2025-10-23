@@ -11,4 +11,4 @@ struct ImageTexture {
 	float *data;
 };
 
-#endif // !IMAGE_TEXTURE
+#endif // IMAGE_TEXTURE

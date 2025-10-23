@@ -1,20 +1,20 @@
 #ifndef SQLITE_HELPER
 #define SQLITE_HELPER
 
-#include <sqlite3.h>
 #include <mutex>
+#include <sqlite3.h>
 #include <string>
 
-struct DBWrapper {
+class DBWrapper {
+  public:
 	sqlite3 *dbP = nullptr;
 	sqlite3 **dbPP = &dbP;
 	std::mutex dbMutex;
 
-	DBWrapper(const char *filename);
+	DBWrapper();
 	~DBWrapper();
-	void executeCommand(const std::string command,
-						sqlite3_callback callback = nullptr,
-						void *data = nullptr);
+	void init(const char *filename);
+	void executeCommand(const std::string command, sqlite3_callback callback = nullptr, void *data = nullptr);
 };
 
-#endif // !SQLITE_HELPER
+#endif // SQLITE_HELPER

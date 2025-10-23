@@ -1,24 +1,33 @@
 #version 330 core
 
 in vec2 TexCoord;
-uniform sampler2DArray texArray;
-uniform sampler2D fbTex;
-uniform int textureCount;
-uniform int textureStart;
-
 out vec4 FragColor;
 
+uniform sampler2D old_texture;
+uniform sampler2DArray images;
+uniform sampler1D mask;
+
+uniform int atlas_size;
+uniform int n_cells;
+uniform int thumb_size;
+uniform int thumb_count;
+
 void main() {
-	vec2 pos = TexCoord * vec2(10);
-	int texIndex = int(pos.y) * 10 + int(pos.x);
-	if (texIndex >= textureCount) {
-		FragColor = vec4(0.0f);
-		return;
+	vec4 color = texture(old_texture, TexCoord);
+	vec2 pixel = TexCoord * float(atlas_size);
+
+	int cellX = int(pixel.x) / thumb_size;
+	int cellY = int(pixel.y) / thumb_size;
+
+	int idx = cellY * n_cells + cellX;
+
+	if (idx < thumb_count) {
+		float update = texture(mask, float(idx) / float(thumb_count)).r;
+		if (update > 0.0) {
+			vec2 local = fract(pixel / float(thumb_size));
+			color = texture(images, vec3(local, float(idx)));
+		}
 	}
-	if (texIndex < textureStart) {
-		FragColor = texture(fbTex, TexCoord);
-		return;
-	}
-	vec2 localCoord = fract(pos);
-	FragColor = texture(texArray, vec3(localCoord, texIndex - textureStart));
+
+	FragColor = color;
 }
