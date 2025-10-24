@@ -143,6 +143,7 @@ void Application::start() {
 	pool.enqueue(ImageManager::compile_shader);
 	pool.enqueue(ImageManager::create_buffers);
 	pool.enqueue(ImageManager::cache_atlas);
+	pool.enqueue(ImageManager::load_images);
 	uiLayer.init(window);
 
 	while (running && window.is_open()) {

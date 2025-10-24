@@ -78,8 +78,8 @@ struct AtlasHole {
 class ImageManager {
   public:
 	void discover_images();
-	void load_image();
 
+	static void load_images();
 	static void cache_atlas();
 	static void compile_shader();
 	static void create_buffers();
