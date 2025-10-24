@@ -264,9 +264,9 @@ void ImageManager::draw_to_fbo(unsigned int *old_texture) {
 			// uniform int n_cells;
 			GLCall(glUniform1i(glGetUniformLocation(atlas_shader, "n_cells"), 10));
 			// uniform int thumb_size;
-			GLCall(glUniform1i(glGetUniformLocation(atlas_shader, "thum_size"), 224));
+			GLCall(glUniform1i(glGetUniformLocation(atlas_shader, "thumb_size"), 224));
 			// uniform int thumb_count;
-			GLCall(glUniform1i(glGetUniformLocation(atlas_shader, "thum_count"), 100));
+			GLCall(glUniform1i(glGetUniformLocation(atlas_shader, "thumb_count"), 100));
 
 			// TODO: Make 224 variable
 			GLCall(glViewport(0, 0, 2240, 2240));
@@ -394,7 +394,7 @@ int find_id_db() {
 	int id;
 	app.db.executeCommand("SELECT COUNT(1) FROM Atlas;", [](void *data, int, char **argv, char **) {
 		int *id = ( int * )data;
-		*id = std::stoi(argv[0]);
+		*id = std::stoi(argv[0]) + 1;
 		return 0;
 	},
 		&id);
@@ -557,13 +557,13 @@ void ImageManager::discover_images() {
 	// 	"Prepare framerbuffer");
 }
 
-void ImageManager::load_image() {
+void ImageManager::load_images() {
 	Application &app = Application::get_instance();
 	app.db.executeCommand("SELECT * FROM Images;", [](void *data, int, char **argv, char **) {
-		auto images = *( std::unordered_map<int, ImageTexture> * )data;
+		auto images = ( std::unordered_map<int, ImageTexture> * )data;
 		int id = std::stoi(argv[0]);
-		if (images.find(id) == images.end()) {
-			images[id] = {
+		if (images->find(id) == images->end()) {
+			(*images)[id] = {
 				.path = argv[1],
 				.atlas_id = std::stoi(argv[2]),
 				.atlas_index = std::stoi(argv[3])
@@ -579,14 +579,15 @@ void ImageManager::cache_atlas() {
 
 	std::vector<std::pair<int, std::string>> atlas_ids;
 	app.db.executeCommand("SELECT * FROM Atlas;", [](void *data, int, char **argv, char **) {
-		auto atlas_ids = *( std::vector<std::pair<int, std::string>> * )data;
-		atlas_ids.push_back({ std::stoi(argv[0]), argv[1] });
+		auto atlas_ids = ( std::vector<std::pair<int, std::string>> * )data;
+		atlas_ids->push_back({ std::stoi(argv[0]), argv[1] });
 		return 0;
 	},
 		&atlas_ids);
 
 	for (int i = 0; i < atlas_ids.size(); i++) {
-		unsigned char *data = stbi_load(atlas_ids[i].second.c_str(), NULL, NULL, NULL, 3);
+		int _w, _h;
+		unsigned char *data = stbi_load(atlas_ids[i].second.c_str(), &_w, &_h, NULL, 3);
 		int id = atlas_ids[i].first;
 		std::shared_ptr<GLJob> atlasJob = std::make_shared<GLJob>([id, data]() {
 			unsigned int tex_ptr;
