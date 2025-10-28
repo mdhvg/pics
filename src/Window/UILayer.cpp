@@ -1,5 +1,6 @@
 #include "Application.h"
 #include "Window/UILayer.h"
+#include "ImageManager.h"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
 #include "imgui.h"
@@ -12,6 +13,8 @@ void UILayer::init(Window &win) {
 	ImGui::CreateContext();
 	ImGuiIO &io = ImGui::GetIO();
 	( void )io;
+	io.IniFilename = NULL;
+	io.LogFilename = NULL;
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;  // Enable Gamepad Controls
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;	  // Enable Docking
@@ -53,6 +56,7 @@ void UILayer::render() {
 	if (view == MENU) {
 		menu(app.img_man);
 	} else {
+		preview(app.img_man);
 	}
 }
 
@@ -98,13 +102,17 @@ void UILayer::menu(ImageManager &img_man) {
 
 	for (const auto &img : img_man.images) {
 		// TODO: Make 224 a variable
-		int x = img.second.atlas_index % 10;
-		int y = img.second.atlas_index / 10;
-		ImGui::ImageButton(img.second.path.c_str(),
-			img_man.atlas_texture[img.second.atlas_id],
-			{ 224, 224 },
-			{ ( float )x / 10, ( float )y / 10 },
-			{ ( float )(x + 1) / 10, ( float )(y + 1) / 10 });
+		int x = img.second.image_index % 10;
+		int y = img.second.image_index / 10;
+		if (ImGui::ImageButton(img.second.path.c_str(),
+				img_man.atlas_texture[img.second.texture_id],
+				{ 224, 224 },
+				{ ( float )x / 10, ( float )y / 10 },
+				{ ( float )(x + 1) / 10, ( float )(y + 1) / 10 })) {
+			state.active_image = img.first;
+			ImageManager::load_preview(img.second.path);
+			view = PREVIEW;
+		}
 		if (--inRow) {
 			ImGui::SameLine();
 		} else {
@@ -131,14 +139,11 @@ void UILayer::menu(ImageManager &img_man) {
 	// 	}
 }
 
-void menu_set_items() {
-	// ImageHandle &img_handle = ImageHandle::get_instance();
-	// Get the ordering also
-	// Also limit number of images being shown depending on visible ones
-}
+void UILayer::preview(ImageManager &img_man) {
+	if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+		view = MENU;
+	}
 
-void render_menu() {
-	// This is 1 frame of the menu
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
@@ -156,45 +161,35 @@ void render_menu() {
 			ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar);
 	ImGui::PopStyleVar(3);
 
-	// ImGui::BeginMenuBar();
-	// if (ImGui::BeginMenu("File")) {
-	// 	if (ImGui::MenuItem("Exit"))
-	// 		glfwSetWindowShouldClose(window, GLFW_TRUE);
-	// 	ImGui::EndMenu();
-	// }
-	// ImGui::EndMenuBar();
+	ImGui::BeginMenuBar();
+	if (ImGui::BeginMenu("File")) {
+		if (ImGui::MenuItem("Exit"))
+			glfwSetWindowShouldClose(glfwWin, GLFW_TRUE);
+		ImGui::EndMenu();
+	}
+	ImGui::EndMenuBar();
 
-	// ImGui::InputTextWithHint(
-	// 	"Search", "describe image...", searchField, 2048);
-	// #ifdef _WIN32
-	// 		ImGui::Text("Scanned Images %lld", imagePaths.size());
-	// #else
-	// 		ImGui::Text("Scanned Images %ld", imagePaths.size());
-	// #endif
-	float widthAvail = ImGui::GetContentRegionAvail().x;
-	int cells = ( int )(widthAvail / (224 + ImGui::GetStyle().ItemSpacing.x));
-	cells = std::max(cells, 1);
+	ImVec2 dimensions = ImGui::GetContentRegionAvail();
 
-	float requiredWidth = (224 + ImGui::GetStyle().ItemSpacing.x) * cells;
-	ImGui::SetCursorPosX((widthAvail - requiredWidth) * 0.5);
-
-	int inRow = cells;
-
-	// for (const auto &img : imageTextures) {
-	// 	// TODO: Make 224 a variable
-	// 	int x = img.atlas_index % 10;
-	// 	int y = img.atlas_index / 10;
-	// 	ImGui::ImageButton(img.path.c_str(), img.textureID, {224, 224}, {(float)x/10, (float)y/10}, {(float)(x+1)/10, (float)(y+1)/10});
-	// 	if (--inRow) {
-	// 		ImGui::SameLine();
-	// 	} else {
-	// 		ImGui::SetCursorPosX((widthAvail - requiredWidth) * 0.5);
-	// 		inRow = cells;
-	// 	}
-	// }
+	ImGui::Image(ImageManager::preview_texture.texture_id,
+		{ ( float )ImageManager::preview_texture.width, ( float )ImageManager::preview_texture.height },
+		{ 0, 0 },
+		{ 1, 1 });
 
 	ImGui::End();
 
+	// Rendering
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+	// 	// Update and Render additional Platform Windows
+	// 	// Platform functions may change the current OpenGL context, so we
+	// 	// save/restore it to make it easier to paste this code elsewhere.
+	// 	ImGuiIO &io = ImGui::GetIO();
+	// 	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+	// 		GLFWwindow *backup_current_context = glfwGetCurrentContext();
+	ImGui::UpdatePlatformWindows();
+	// 		ImGui::RenderPlatformWindowsDefault();
+	// 		glfwMakeContextCurrent(backup_current_context);
+	// 	}
 }

@@ -29,13 +29,14 @@ unsigned int ImageManager::vbo = 0;
 unsigned int ImageManager::ebo = 0;
 unsigned int ImageManager::image_array = 0;
 unsigned int ImageManager::mask_texture = 0;
+ImageTexture ImageManager::preview_texture;
 unsigned char ImageManager::mask[100] = { 0 };
 
-std::unordered_map<int, unsigned int> ImageManager::atlas_texture;
+std::unordered_map<unsigned int, unsigned int> ImageManager::atlas_texture;
 
 struct Atlas {
 	std::string path;
-	int id, index;
+	int unsigned id, index;
 };
 
 bool imageExists(const fs::path &path, DBWrapper &db) {
@@ -277,7 +278,7 @@ void ImageManager::draw_to_fbo(unsigned int *old_texture) {
 	Application::get_instance().glJobQ.push(job);
 }
 
-void ImageManager::bind_thumbnails(std::vector<std::pair<int, std::string>> &index_path) {
+void ImageManager::bind_thumbnails(std::vector<std::pair<unsigned int, std::string>> &index_path) {
 	memset(mask, 0, 100);
 	for (int i = 0; i < index_path.size(); i++) {
 		unsigned char *data = get_thumbnail_data(index_path[i].second);
@@ -348,7 +349,7 @@ void ImageManager::bind_thumbnails(std::vector<std::pair<int, std::string>> &ind
 	Application::get_instance().glJobQ.push(job);
 }
 
-void ImageManager::replace_texture(int id, unsigned int new_texture) {
+void ImageManager::replace_texture(unsigned int id, unsigned int new_texture) {
 	atlas_texture[id] = new_texture;
 }
 
@@ -375,18 +376,31 @@ void update_incomplete_db(Atlas atlas, int count) {
 		atlas.index + count));
 }
 
-void add_images_db(Atlas atlas, std::vector<std::pair<int, std::string>> &fill) {
+void add_images_db(Atlas atlas, std::vector<std::pair<unsigned int, std::string>> &fill) {
 	Application &app = Application::get_instance();
+	app.db.executeCommand("BEGIN TRANSACTION;");
 	for (int i = 0; i < fill.size(); i++) {
+		unsigned int id;
 		app.db.executeCommand(fmt::format(
-			R"(INSERT INTO Images
+								  R"(INSERT INTO Images
 			(path, atlas_id, atlas_index)
 			VALUES
-			('{}', {}, {});)",
-			fill[i].second,
+			('{}', {}, {})
+			RETURNING id;)",
+								  fill[i].second,
+								  atlas.id,
+								  fill[i].first),
+			[](void *data, int, char **argv, char **) {
+				unsigned int *id = ( unsigned int * )data;
+				*id = std::stoul(argv[0]);
+				return 0;
+			},
+			&id);
+		app.img_man.images[id] = { fill[i].second,
 			atlas.id,
-			fill[i].first));
+			fill[i].first };
 	}
+	app.db.executeCommand("COMMIT;");
 }
 
 int find_id_db() {
@@ -446,7 +460,7 @@ void ImageManager::save_framebuffer(std::string &path) {
 void ImageManager::create_atlas(std::queue<std::string> &paths) {
 	Application &app = Application::get_instance();
 
-	std::vector<std::pair<int, std::string>> hole_fill;
+	std::vector<std::pair<unsigned int, std::string>> hole_fill;
 	// TODO: Find the ones with holes also
 	std::vector<Atlas> incomplete;
 	app.db.executeCommand(R"(SELECT
@@ -458,8 +472,8 @@ void ImageManager::create_atlas(std::queue<std::string> &paths) {
 		[](void *data, int, char **argv, char **) {
 			auto incomplete = *( std::vector<Atlas> * )data;
 			incomplete.push_back({ argv[1],
-				std::stoi(argv[0]),
-				std::stoi(argv[2]) });
+				( unsigned int )std::stoul(argv[0]),
+				( unsigned int )std::stoul(argv[2]) });
 			return 0;
 		},
 		&incomplete);
@@ -481,7 +495,7 @@ void ImageManager::create_atlas(std::queue<std::string> &paths) {
 		delete_texture(old_texture);
 		update_incomplete_db(atlas, count);
 		add_images_db(atlas, hole_fill);
-		std::vector<std::pair<int, std::string>> temp;
+		std::vector<std::pair<unsigned int, std::string>> temp;
 		temp.swap(hole_fill);
 	}
 
@@ -490,7 +504,7 @@ void ImageManager::create_atlas(std::queue<std::string> &paths) {
 	// TODO: Now create new ones
 	int iters = (paths.size() + 99) / 100;
 	for (int i = 0; i < iters; i++) {
-		int count = 0;
+		unsigned int count = 0;
 		for (int i = 0; i < 100 && !paths.empty(); i++) {
 			hole_fill.push_back({ i, paths.front() });
 			count++;
@@ -502,13 +516,13 @@ void ImageManager::create_atlas(std::queue<std::string> &paths) {
 		bind_tex_to_fbo(empty, framebuffer);
 		unsigned int old_texture;
 		draw_to_fbo(&old_texture);
-		int id = find_id_db();
+		unsigned int id = find_id_db();
 		atlas_texture[id] = empty;
 		std::string atlas_path = fmt::format(ROOT_DIR "/.atlas/atlas_{}.png", id);
 		save_framebuffer(atlas_path);
 		add_atlas_db({ atlas_path, id, count - 1 }, count);
 		add_images_db({ atlas_path, id, count - 1 }, hole_fill);
-		std::vector<std::pair<int, std::string>> temp;
+		std::vector<std::pair<unsigned int, std::string>> temp;
 		temp.swap(hole_fill);
 	}
 }
@@ -560,13 +574,13 @@ void ImageManager::discover_images() {
 void ImageManager::load_images() {
 	Application &app = Application::get_instance();
 	app.db.executeCommand("SELECT * FROM Images;", [](void *data, int, char **argv, char **) {
-		auto images = ( std::unordered_map<int, ImageTexture> * )data;
-		int id = std::stoi(argv[0]);
+		auto images = ( std::unordered_map<unsigned int, ImageTexture> * )data;
+		unsigned int id = ( unsigned int )std::stoul(argv[0]);
 		if (images->find(id) == images->end()) {
 			(*images)[id] = {
 				.path = argv[1],
-				.atlas_id = std::stoi(argv[2]),
-				.atlas_index = std::stoi(argv[3])
+				.texture_id = ( unsigned int )std::stoul(argv[2]),
+				.image_index = ( unsigned int )std::stoul(argv[3])
 			};
 		}
 		return 0;
@@ -668,6 +682,54 @@ void ImageManager::create_buffers() {
 			4 * sizeof(float),
 			( void * )(2 * sizeof(float))));
 		GLCall(glEnableVertexAttribArray(1))
+	});
+	Application::get_instance().glJobQ.push(job);
+}
+
+void ImageManager::load_preview(const std::string &path) {
+	int width, height, comp;
+	unsigned char *data = stbi_load(path.c_str(), &width, &height, &comp, 0);
+	auto job = std::make_shared<GLJob>([data, width, height, comp]() {
+		preview_texture.width = width;
+		preview_texture.height = height;
+		if (!glIsTexture(preview_texture.texture_id)) {
+			GLCall(glGenTextures(1, &(preview_texture.texture_id)));
+			GLCall(glBindTexture(GL_TEXTURE_2D, preview_texture.texture_id));
+			GLCall(glPixelStorei(GL_UNPACK_ROW_LENGTH, 0));
+
+			GLenum format = GL_RGB;
+			if (comp == 4)
+				format = GL_RGBA;
+
+			GLCall(glTexImage2D(GL_TEXTURE_2D,
+				0,
+				format,
+				width,
+				height,
+				0,
+				format,
+				GL_UNSIGNED_BYTE,
+				data));
+
+			GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+			GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+			GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER));
+			GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER));
+		} else {
+			GLCall(glBindTexture(GL_TEXTURE_2D, preview_texture.texture_id));
+			GLenum format = GL_RGB;
+			if (comp == 4)
+				format = GL_RGBA;
+			GLCall(glTexImage2D(GL_TEXTURE_2D,
+				0,
+				format,
+				width,
+				height,
+				0,
+				format,
+				GL_UNSIGNED_BYTE,
+				data));
+		}
 	});
 	Application::get_instance().glJobQ.push(job);
 }

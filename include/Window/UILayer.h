@@ -11,6 +11,10 @@ enum View {
 	PREVIEW
 };
 
+struct UIState {
+	int active_image = 0;
+};
+
 class UILayer {
   public:
 	void init(Window &win);
@@ -23,8 +27,10 @@ class UILayer {
 	View view{ MENU };
 
 	float startTime;
+	UIState state;
 
 	void menu(ImageManager &img_man);
+	void preview(ImageManager &img_man);
 };
 
 #endif // UILAYER_H

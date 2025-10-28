@@ -8,8 +8,10 @@
 
 struct ImageTexture {
 	std::string path;
-	int atlas_id;
-	int atlas_index;
+	unsigned int texture_id = 0;  // For thumbnails, this is atlas_id
+	unsigned int image_index = 0; // For thumbnails only
+	size_t width = 0,
+		   height = 0;
 };
 
 /*
@@ -83,17 +85,20 @@ class ImageManager {
 	static void cache_atlas();
 	static void compile_shader();
 	static void create_buffers();
+	static void load_preview(const std::string &path);
 
-	std::unordered_map<int, ImageTexture> images;
-	static std::unordered_map<int, unsigned int> atlas_texture;
+	std::unordered_map<unsigned int, ImageTexture> images;
+	static std::unordered_map<unsigned int, unsigned int> atlas_texture;
+
+	static ImageTexture preview_texture;
 
   private:
 	void create_atlas(std::queue<std::string> &paths);
-	void put_thumbnail(unsigned char *data, AtlasHole hole, int offset);
+	void put_thumbnail(unsigned char *data, AtlasHole hole, unsigned int offset);
 	void refill_holes(std::vector<std::string> &paths, const std::vector<AtlasHole> &holes);
-	void bind_thumbnails(std::vector<std::pair<int, std::string>> &index_path);
+	void bind_thumbnails(std::vector<std::pair<unsigned int, std::string>> &index_path);
 	void draw_to_fbo(unsigned int *old_texture);
-	void replace_texture(int id, unsigned int new_texture);
+	void replace_texture(unsigned int id, unsigned int new_texture);
 	void save_framebuffer(std::string &path);
 	void prepare_framebuffer();
 
