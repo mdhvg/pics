@@ -26,12 +26,6 @@ from Images table.
 Both of these are later filled with image thumbnails when new images are
 discovered.
 
-In this example, we have these holes (This grid is 6x7)
-[0]: { index =  3, size =  2 }
-[1]: { index =  8, size =  1 }
-[2]: { index = 17, size =  3 }
-[3]: { index = 22, size = 20 }
-
 ┌────────────────────────────────┬─────────────────────┬─────────────────────┐
 │                                │xxxxxxxxxxxxxxxxxxxxx│                     │
 │                                │xxxxxxxxxxxxxxxxxxxxx│                     │
@@ -89,7 +83,7 @@ class ImageManager {
 
 	std::unordered_map<unsigned int, ImageTexture> images;
 	static std::unordered_map<unsigned int, unsigned int> atlas_texture;
-
+	static std::vector<int> display_order; // TODO: Store the image thumbnails display order based on selected setting (That also is a TODO)
 	static ImageTexture preview_texture;
 
   private:

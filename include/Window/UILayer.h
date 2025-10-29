@@ -27,6 +27,8 @@ class UILayer {
 	View view{ MENU };
 
 	float startTime;
+	float scroll_y = 0;
+	bool restore_scroll = false;
 	UIState state;
 
 	void menu(ImageManager &img_man);

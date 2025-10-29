@@ -2,10 +2,6 @@
 #include "Debug.h"
 #include "Application.h"
 #include "Utils.h"
-#include "spdlog/spdlog.h"
-#include <chrono>
-#include <thread>
-#include <utility>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"

@@ -31,6 +31,7 @@ json create_default_config() {
 void db_init() {
 	Application &app = Application::get_instance();
 	app.db.init(app.dbPath); // TODO: Can make a config parser and have db path come from it
+	// TODO: Make an entry for mtime, ctime (UNIX epoch both), size and other stuff in Images table.
 	app.db.executeCommand(R"(
 		CREATE TABLE IF NOT EXISTS Images (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,

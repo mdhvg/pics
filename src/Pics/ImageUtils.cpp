@@ -4,7 +4,6 @@
 #include "SQLiteHelper.h"
 #include "fmt/core.h"
 #include "glad/glad.h"
-#include "spdlog/fmt/bundled/format.h"
 
 #include <algorithm>
 #include <cstddef>
