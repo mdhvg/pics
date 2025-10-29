@@ -9,7 +9,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
 include(CTest)
-include(cmake/UpdateSubmodules.cmake)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/bin/Debug")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/lib/Debug")
@@ -28,7 +27,7 @@ if (BUILD_SHARED_LIBS)
 endif()
 
 # Other Cmake files
-include(cmake/UpdateSubmodules.cmake)
+# include(cmake/UpdateSubmodules.cmake)
 # Platform specific
 if (MSVC)
     include(cmake/MSVC.cmake)
@@ -62,21 +61,145 @@ find_package(Threads REQUIRED)
 target_link_libraries(${LIB_NAME} PUBLIC Threads::Threads)
 # target_link_libraries("${LIB_NAME}Tests" Threads::Threads)
 
+# FMT
+find_package(fmt REQUIRED)
+target_link_libraries(${LIB_NAME} PUBLIC fmt::fmt)
+# set(FMT_DIR "${DEPS_DIR}/fmt")
+# add_subdirectory("${FMT_DIR}")
+# target_link_libraries(${LIB_NAME} PUBLIC fmt)
+# target_include_directories(${LIB_NAME} PUBLIC "${FMT_DIR}/include")
+
+# OpenImageIO
+# include(FetchContent)
+
+# FetchContent_Declare(
+#   OpenImageIO
+#   GIT_REPOSITORY https://github.com/AcademySoftwareFoundation/OpenImageIO.git
+#   GIT_TAG release
+#   SOURCE_DIR ${DEPS_DIR}/OpenImageIO
+#   CMAKE_ARGS
+#     -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/oiio_install
+
+#     -DBUILD_SHARED_LIBS=OFF
+#     -DLINKSTATIC=ON
+#     -DUSE_SIMD=sse4.2
+
+#     -DUSE_PYTHON=OFF
+#     -DUSE_QT=OFF
+#     -DUSE_NUKE=OFF
+#     -DUSE_OPENVDB=OFF
+#     -DUSE_FREETYPE=OFF
+#     -DUSE_DCMTK=OFF
+#     -DUSE_OPENCV=OFF
+#     -DUSE_FFMPEG=OFF
+#     -DUSE_PTEX=OFF
+#     -DUSE_FREETYPE=OFF
+#     -DUSE_OPENCOLORIO=OFF
+
+#     -DUSE_LIBHEIF=ON
+#     -DUSE_TBB=ON
+#     -DUSE_GIF=ON
+#     -DUSE_OPENJPEG=ON
+#     -DUSE_LIBRAW=ON
+#     -DUSE_JXL=ON
+#     -DUSE_WEBP=ON
+#     -DUSE_EXTERNAL_PUGIXML=OFF
+
+#     -DOIIO_BUILD_TOOLS=OFF
+#     -DOIIO_BUILD_TESTS=OFF
+#     -DBUILD_TESTING=OFF
+#     -DSTOP_ON_WARNING=OFF
+#     -DOpenImageIO_BUILD_MISSING_DEPS=""
+
+#     -DOpenImageIO_REQUIRED_DEPS="WebP;JPEGTurbo;TIFF;OpenEXR;PNG;OpenJPEG;fmt;Robinmap;ZLIB;pugixml"
+
+#     -DFMT_INCLUDE_DIR=${FMT_DIR}/include
+#     -Dfmt_ROOT=${FMT_DIR}
+# )
+# FetchContent_MakeAvailable(OpenImageIO)
+# target_link_libraries(${LIB_NAME} PRIVATE OpenImageIO::OpenImageIO)
+
+
+find_package(OpenImageIO REQUIRED)
+target_link_libraries(${LIB_NAME} PRIVATE OpenImageIO::OpenImageIO)
+target_include_directories(${LIB_NAME} PRIVATE ${OpenImageIO_INCLUDE_DIRS})
+
+# set(OIIO_DIR "${DEPS_DIR}/OpenImageIO")
+# set(USE_PYTHON OFF CACHE BOOL "" FORCE)
+# set(OIIO_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+# set(OIIO_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+# set(USE_QT OFF CACHE BOOL "" FORCE)
+# set(BUILD_SHARED_LIBS OFF)
+# set(LINKSTATIC ON)
+# set(OpenImageIO_REQUIRED_DEPS "WebP$<SEMICOLON>JPEGTurbo$<SEMICOLON>TIFF$<SEMICOLON>OpenEXR$<SEMICOLON>PNG$<SEMICOLON>OpenJPEG$<SEMICOLON>fmt$<SEMICOLON>Robinmap$<SEMICOLON>ZLIB$<SEMICOLON>pugixml")
+# set(USE_LIBHEIF ON)
+# set(USE_TBB ON)
+# set(USE_GIF ON)
+# set(USE_OPENJPEG ON)
+# set(USE_LIBRAW ON)
+# set(USE_JXL ON)
+# set(USE_WEBP ON)
+# set(USE_EXTERNAL_PUGIXML OFF)
+
+# set(STOP_ON_WARNING OFF)
+
+# set(FMT_INCLUDE_DIR "${FMT_DIR}/include/")
+# set(fmt_ROOT "${FMT_DIR}")
+
+# set(USE_SIMD sse4.2)
+
+# set(USE_NUKE OFF)
+# set(USE_OPENVDB OFF)
+# set(USE_FREETYPE OFF)
+# set(USE_DCMTK OFF)
+# set(USE_QT OFF)
+# set(USE_PYTHON OFF)
+# set(USE_OPENCV OFF)
+# set(USE_FFMPEG OFF)
+# set(USE_PTEX OFF)
+# set(USE_FREETYPE OFF)
+# set(USE_OPENCOLORIO OFF)
+# set(OIIO_BUILD_TOOLS OFF)
+# set(OIIO_BUILD_TESTS OFF)
+# set(BUILD_TESTING OFF)
+# set(OpenImageIO_BUILD_MISSING_DEPS "")
+# #   -DJPEG_ROOT=${LIBDIR}/jpeg/
+# #   -Dlibjpeg-turbo_ROOT=${LIBDIR}/jpeg/
+# #   -DOpenJPEG_ROOT=${LIBDIR}/openjpeg
+# #   -DOPENEXR_ILMTHREAD_LIBRARY=${LIBDIR}/openexr/lib/${LIBPREFIX}IlmThread${OPENEXR_VERSION_POSTFIX}${SHAREDLIBEXT}
+# #   -DOPENEXR_IEX_LIBRARY=${LIBDIR}/openexr/lib/${LIBPREFIX}Iex${OPENEXR_VERSION_POSTFIX}${SHAREDLIBEXT}
+# #   -DOPENEXR_ILMIMF_LIBRARY=${LIBDIR}/openexr/lib/${LIBPREFIX}IlmImf${OPENEXR_VERSION_POSTFIX}${SHAREDLIBEXT}
+# #   -DPUGIXML_LIBRARY=${LIBDIR}/pugixml/lib/${LIBPREFIX}pugixml${LIBEXT}
+# #   -DPUGIXML_INCLUDE_DIR=${LIBDIR}/pugixml/include/
+# #   -Dpugixml_DIR=${LIBDIR}/pugixml/lib/cmake/pugixml
+# #   -DOpenColorIO_DIR=${LIBDIR}/opencolorio/lib/cmake/OpenColorIO
+# #   -DRobinmap_ROOT=${LIBDIR}/robinmap
+# #   -DWebP_ROOT=${LIBDIR}/webp
+# #   -DOpenEXR_ROOT=${LIBDIR}/openexr
+# #   -DImath_ROOT=${LIBDIR}/imath
+# #   -Dpybind11_ROOT=${LIBDIR}/pybind11
+# #   -DPython_EXECUTABLE=${PYTHON_BINARY}
+# #   -DPython3_EXECUTABLE=${PYTHON_BINARY}
+# #   -DTBB_ROOT=${LIBDIR}/tbb
+# #   -Dlibdeflate_ROOT=${LIBDIR}/deflate
+# add_subdirectory("${OIIO_DIR}")
+# target_link_libraries(${LIB_NAME} PRIVATE OpenImageIO::OpenImageIO)
+# target_include_directories(OpenImageIO PRIVATE ${OIIO_DIR}/src/include)
+# target_include_directories(${LIB_NAME} PRIVATE ${OIIO_DIR}/src)
+
 # NLOHMANN JSON
 set(JSON_DIR "${DEPS_DIR}/json")
 add_subdirectory("${JSON_DIR}")
 target_link_libraries(${LIB_NAME} PUBLIC nlohmann_json::nlohmann_json)
 target_include_directories(${LIB_NAME} PUBLIC "${JSON_DIR}/include")
-# target_link_libraries("${LIB_NAME}Tests" nlohmann_json::nlohmann_json)
-# target_include_directories("${LIB_NAME}Tests" PUBLIC "${JSON_DIR}/include")
 
 # SPDLOG
-set(SPDLOG_DIR "${DEPS_DIR}/spdlog")
-add_subdirectory("${SPDLOG_DIR}")
-target_link_libraries(${LIB_NAME} PUBLIC spdlog)
-target_include_directories(${LIB_NAME} PUBLIC "${SPDLOG_DIR}/include")
-# target_link_libraries("${LIB_NAME}Tests" spdlog)
-# target_include_directories("${LIB_NAME}Tests" PUBLIC "${SPDLOG_DIR}/include")
+find_package(spdlog REQUIRED)
+target_link_libraries(${LIB_NAME} PUBLIC spdlog::spdlog)
+# set(SPDLOG_DIR "${DEPS_DIR}/spdlog")
+# add_subdirectory("${SPDLOG_DIR}")
+# target_link_libraries(${LIB_NAME} PRIVATE spdlog)
+# target_include_directories(${LIB_NAME} PRIVATE "${SPDLOG_DIR}/include")
 
 # GLFW
 set(GLFW_DIR "${DEPS_DIR}/glfw")
@@ -93,14 +216,6 @@ target_include_directories(glad PUBLIC "${GLAD_DIR}/include")
 target_include_directories(${LIB_NAME} PUBLIC "${GLAD_DIR}/include")
 target_link_libraries(${LIB_NAME} PUBLIC glad ${CMAKE_DL_LIBS})
 # target_link_libraries("${LIB_NAME}Tests" glad ${CMAKE_DL_LIBS})
-
-# FMT
-set(FMT_DIR "${DEPS_DIR}/fmt")
-add_subdirectory("${FMT_DIR}")
-target_link_libraries(${LIB_NAME} PUBLIC fmt)
-target_include_directories(${LIB_NAME} PUBLIC "${FMT_DIR}/include")
-# target_link_libraries("${LIB_NAME}Tests" fmt)
-# target_include_directories("${LIB_NAME}Tests" PUBLIC "${FMT_DIR}/include")
 
 # ImGui
 set(IMGUI_DIR "${DEPS_DIR}/imgui")
