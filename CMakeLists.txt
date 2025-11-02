@@ -21,6 +21,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Custom options
 option(BUILD_TESTS "Enable building tests" OFF)
 option(BUILD_SHARED_LIBS "Build libraries as shared" OFF)
+option(ENABLE_PROFILING "Build profiling lib (Tracy)" OFF)
 
 if (BUILD_SHARED_LIBS)
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -62,12 +63,12 @@ target_link_libraries(${LIB_NAME} PUBLIC Threads::Threads)
 # target_link_libraries("${LIB_NAME}Tests" Threads::Threads)
 
 # FMT
-find_package(fmt REQUIRED)
-target_link_libraries(${LIB_NAME} PUBLIC fmt::fmt)
-# set(FMT_DIR "${DEPS_DIR}/fmt")
-# add_subdirectory("${FMT_DIR}")
-# target_link_libraries(${LIB_NAME} PUBLIC fmt)
-# target_include_directories(${LIB_NAME} PUBLIC "${FMT_DIR}/include")
+# find_package(fmt REQUIRED)
+# target_link_libraries(${LIB_NAME} PUBLIC fmt::fmt)
+set(FMT_DIR "${DEPS_DIR}/fmt")
+add_subdirectory("${FMT_DIR}")
+target_link_libraries(${LIB_NAME} PUBLIC fmt)
+target_include_directories(${LIB_NAME} PUBLIC "${FMT_DIR}/include")
 
 # OpenImageIO
 # include(FetchContent)
@@ -120,9 +121,9 @@ target_link_libraries(${LIB_NAME} PUBLIC fmt::fmt)
 # target_link_libraries(${LIB_NAME} PRIVATE OpenImageIO::OpenImageIO)
 
 
-find_package(OpenImageIO REQUIRED)
-target_link_libraries(${LIB_NAME} PRIVATE OpenImageIO::OpenImageIO)
-target_include_directories(${LIB_NAME} PRIVATE ${OpenImageIO_INCLUDE_DIRS})
+# find_package(OpenImageIO REQUIRED)
+# target_link_libraries(${LIB_NAME} PRIVATE OpenImageIO::OpenImageIO)
+# target_include_directories(${LIB_NAME} PRIVATE ${OpenImageIO_INCLUDE_DIRS})
 
 # set(OIIO_DIR "${DEPS_DIR}/OpenImageIO")
 # set(USE_PYTHON OFF CACHE BOOL "" FORCE)
@@ -194,12 +195,12 @@ target_link_libraries(${LIB_NAME} PUBLIC nlohmann_json::nlohmann_json)
 target_include_directories(${LIB_NAME} PUBLIC "${JSON_DIR}/include")
 
 # SPDLOG
-find_package(spdlog REQUIRED)
-target_link_libraries(${LIB_NAME} PUBLIC spdlog::spdlog)
-# set(SPDLOG_DIR "${DEPS_DIR}/spdlog")
-# add_subdirectory("${SPDLOG_DIR}")
-# target_link_libraries(${LIB_NAME} PRIVATE spdlog)
-# target_include_directories(${LIB_NAME} PRIVATE "${SPDLOG_DIR}/include")
+# find_package(spdlog REQUIRED)
+# target_link_libraries(${LIB_NAME} PUBLIC spdlog::spdlog)
+set(SPDLOG_DIR "${DEPS_DIR}/spdlog")
+add_subdirectory("${SPDLOG_DIR}")
+target_link_libraries(${LIB_NAME} PRIVATE spdlog)
+target_include_directories(${LIB_NAME} PRIVATE "${SPDLOG_DIR}/include")
 
 # GLFW
 set(GLFW_DIR "${DEPS_DIR}/glfw")
@@ -279,9 +280,29 @@ file(DOWNLOAD ${STB_IMAGE_RESIZE_URL} ${STB_DIR}/stb_image_resize2.h)
 target_include_directories(${LIB_NAME} PUBLIC "${STB_DIR}")
 # target_include_directories("${LIB_NAME}Tests" PUBLIC "${STB_DIR}")
 
+# juliettef/IconFontCppHeaders
+set(ICON_FONT_DIR "${DEPS_DIR}/stb")
+file(MAKE_DIRECTORY ${ICON_FONT_DIR})
+
+set(ICON_FONT_LUCIDE_URL "https://raw.githubusercontent.com/juliettef/IconFontCppHeaders/refs/heads/main/IconsLucide.h")
+file(DOWNLOAD ${ICON_FONT_LUCIDE_URL} ${ICON_FONT_DIR}/IconsLucide.h)
+
+target_include_directories(${LIB_NAME} PUBLIC "${STB_DIR}")
+
+# wolfpld/tracy
+if(ENABLE_PROFILING)
+    set(TRACY_DIR "${DEPS_DIR}/tracy")
+    add_library(tracy STATIC "${TRACY_DIR}/public/TracyClient.cpp")
+    target_include_directories(tracy PUBLIC "${TRACY_DIR}/public")
+    
+    target_compile_definitions(tracy PUBLIC TRACY_ENABLE)
+    target_link_libraries(${LIB_NAME} PUBLIC tracy)
+    target_include_directories(${LIB_NAME} PUBLIC "${TRACY_DIR}/public")
+endif()
+
 # Tests
 if (BUILD_TESTS)
-include(cmake/Tests.cmake)
+    include(cmake/Tests.cmake)
 endif()
 
 # Main

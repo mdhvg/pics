@@ -4,6 +4,7 @@ imgui
 deps/stb
 
 test_imgs
+wallpapers
 *.json
 .cache
 imgui.ini

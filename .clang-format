@@ -31,11 +31,12 @@ SpacesInContainerLiterals: true
 SortIncludes: false
 AlignTrailingComments: true
 AlignConsecutiveMacros: true
-AlignConsecutiveDeclarations: false
+AlignConsecutiveDeclarations: true
 SpacesInCStyleCastParentheses: true
 SpaceBeforeParens: ControlStatements
 BreakTemplateDeclarations: Yes
 ColumnLimit: 0
+BreakBeforeBinaryOperators: NonAssignment
 
 AlignAfterOpenBracket: DontAlign
 AllowAllArgumentsOnNextLine: false
