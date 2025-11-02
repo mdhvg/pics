@@ -3,24 +3,15 @@
 #include "ImageManager.h"
 #include "ModelHandler.h"
 
-#include "backends/imgui_impl_glfw.h"
-#include "backends/imgui_impl_opengl3.h"
-#include "imgui.h"
-#include "spdlog/spdlog.h"
-
 #include <dlfcn.h>
-#include <memory>
 #include <renderdoc_app.h>
-
-#include <algorithm>
-#include <cstring>
 
 json create_default_config() {
 	// clang-format off
     auto config = json({
         {"images", {
             {"paths", {
-                "/home/madhav/Documents/dev/pics/test_imgs"
+                ROOT_DIR "/wallpapers"
             }}
         }}
     });
@@ -38,6 +29,7 @@ void db_init() {
 			path TEXT NOT NULL UNIQUE,
 			atlas_id INTEGER NOT NULL,
 			atlas_index INTEGER NOT NULL,
+			filename TEXT NOT NULL,
       		embedding INTEGER NOT NULL DEFAULT 0
 		);
 
@@ -118,7 +110,7 @@ Application::Application()
 
 	if (void *mod = dlopen("librenderdoc.so", RTLD_NOW | RTLD_NOLOAD)) {
 		pRENDERDOC_GetAPI RENDERDOC_GetAPI = ( pRENDERDOC_GetAPI )dlsym(mod, "RENDERDOC_GetAPI");
-		int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_6_0, ( void ** )&rdoc_api);
+		int				  ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_6_0, ( void ** )&rdoc_api);
 		ASSERT(ret == 1);
 	}
 
@@ -145,13 +137,20 @@ void Application::start() {
 	pool.enqueue(ImageManager::create_buffers);
 	pool.enqueue(ImageManager::cache_atlas);
 	pool.enqueue(ImageManager::load_images);
-	uiLayer.init(window);
 
+	uiLayer.init(&window);
 	while (running && window.is_open()) {
 		window.poll();
+		uiLayer.update(window.get_delta());
 		uiLayer.render();
-		process_GL_job();
 		window.update();
+		process_GL_job();
+	}
+
+	running = false;
+
+	while (!glJobQ.empty()) {
+		glJobQ.pop()->reject();
 	}
 
 	uiLayer.shutdown();
@@ -191,12 +190,6 @@ void Application::start() {
 
 	// 	glfwSwapBuffers(window);
 	// }
-
-	// while (!glJobQ.empty()) {
-	// 	glJobQ.pop()->reject();
-	// }
-
-	// SignalBus::getInstance().appRunningM = false;
 }
 
 void Application::process_GL_job() {

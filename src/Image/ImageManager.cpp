@@ -1,14 +1,16 @@
-#include "ImageManager.h"
-#include "Debug.h"
-#include "Application.h"
-#include "Utils.h"
-
+#include "GLJob.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb_image_resize2.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
+
+#include "ImageManager.h"
+#include "Utils.h"
+#include "Application.h"
+#include "Debug.h"
+#include "profile.h"
 
 #include <cstddef>
 #include <string>
@@ -18,20 +20,20 @@
 #include <filesystem>
 #include <queue>
 
-unsigned int ImageManager::framebuffer = 0;
-unsigned int ImageManager::atlas_shader = 0;
-unsigned int ImageManager::vao = 0;
-unsigned int ImageManager::vbo = 0;
-unsigned int ImageManager::ebo = 0;
-unsigned int ImageManager::image_array = 0;
-unsigned int ImageManager::mask_texture = 0;
-ImageTexture ImageManager::preview_texture;
+unsigned int  ImageManager::framebuffer = 0;
+unsigned int  ImageManager::atlas_shader = 0;
+unsigned int  ImageManager::vao = 0;
+unsigned int  ImageManager::vbo = 0;
+unsigned int  ImageManager::ebo = 0;
+unsigned int  ImageManager::image_array = 0;
+unsigned int  ImageManager::mask_texture = 0;
+ImageTexture  ImageManager::preview_texture;
 unsigned char ImageManager::mask[100] = { 0 };
 
 std::unordered_map<unsigned int, unsigned int> ImageManager::atlas_texture;
 
 struct Atlas {
-	std::string path;
+	std::string	 path;
 	int unsigned id, index;
 };
 
@@ -61,14 +63,14 @@ unsigned char *get_thumbnail_data(const std::string &path) {
 	// 	auto s = imagePath.string();
 	// #endif
 
-	int width, height;
+	int			   width, height;
 	unsigned char *data = stbi_load(path.c_str(), &width, &height, NULL, 3);
-	ASSERT(data != nullptr && fmt::format("Couldn't load image: {}", path).c_str());
+	ASSERT(data != nullptr);
 
-	int smaller_side = std::min(width, height);
+	int			   smaller_side = std::min(width, height);
 	unsigned char *cropped = new unsigned char[smaller_side * smaller_side * 3];
-	int x_off = (width - smaller_side) / 2;
-	int y_off = (height - smaller_side) / 2;
+	int			   x_off = (width - smaller_side) / 2;
+	int			   y_off = (height - smaller_side) / 2;
 
 	unsigned char *src = data + (y_off * width + x_off) * 3;
 	unsigned char *dst = cropped;
@@ -96,33 +98,32 @@ unsigned int get_hole_atlas(ImageManager *manager, const Atlas &hole) {
 	std::mutex end;
 	end.lock();
 
-	unsigned int texture;
-	int width, height;
+	unsigned int   texture;
+	int			   width, height;
 	unsigned char *data = stbi_load(hole.path.c_str(), &width, &height, NULL, 4);
-	auto job = std::make_shared<GLJob>([t = &texture, data, width, height]() {
-		GLCall(glGenTextures(1, t));
-		GLCall(glBindTexture(GL_TEXTURE_2D, *t));
-		GLCall(glPixelStorei(GL_UNPACK_ROW_LENGTH, 0));
+	auto		   job = std::make_shared<GLJob>([t = &texture, data, width, height]() {
+		  GLCall(glGenTextures(1, t));
+		  GLCall(glBindTexture(GL_TEXTURE_2D, *t));
 
-		GLCall(glTexImage2D(GL_TEXTURE_2D,
-			0,
-			GL_RGB,
-			2240,
-			2240,
-			0,
-			GL_RGB,
-			GL_UNSIGNED_BYTE,
-			data));
+		  GLCall(glTexImage2D(GL_TEXTURE_2D,
+			  0,
+			  GL_RGB,
+			  2240,
+			  2240,
+			  0,
+			  GL_RGB,
+			  GL_UNSIGNED_BYTE,
+			  data));
 
-		GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-		GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-		GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER));
-		GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER));
+		  GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+		  GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+		  GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER));
+		  GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER));
 
-		stbi_image_free(data);
-	},
-		"create texture",
-		&end);
+		  stbi_image_free(data);
+	  },
+		  "create texture",
+		  &end);
 	Application::get_instance().glJobQ.push(job);
 
 	end.lock();
@@ -141,14 +142,13 @@ void gen_framebuffer(unsigned int *fbo) {
 
 unsigned int new_texture(int width, int height, unsigned char *data = NULL) {
 	unsigned int texture;
-	std::mutex end;
+	std::mutex	 end;
 	end.lock();
 
 	auto job = std::make_shared<GLJob>([t = &texture, width, height, data]() {
 		GLCall(glGenTextures(1, t));
 		GLCall(glBindTexture(GL_TEXTURE_2D, *t));
 		GLCall(glBindTexture(GL_TEXTURE_2D, *t));
-		GLCall(glPixelStorei(GL_UNPACK_ROW_LENGTH, 0));
 
 		GLCall(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 2240, 2240, 0, GL_RGB, GL_UNSIGNED_BYTE, data));
 
@@ -189,39 +189,8 @@ void bind_tex_to_fbo(unsigned int tex, unsigned int fbo) {
 void draw_thumbnail(unsigned char *data, int index, unsigned int fbo) {
 }
 
-// void ImageManager::put_thumbnail(unsigned char *data, AtlasHole hole, int offset) {
-// 	// TODO:
-// 	// check if the hole.atlas_id is loaded (very probable)
-// 	// if not, load it as a texture and put that entry in atlas_texture member
-// 	unsigned int atlas_texture = get_hole_atlas(this, hole);
-// 	// create a new texture and bind it to a new framebuffer
-// 	gen_framebuffer(&framebuffer);
-// 	unsigned int out_texture = new_texture(2240, 2240);
-// 	bind_tex_to_fbo(out_texture, framebuffer);
-// 	// draw onto the framebuffer
-// 	draw_thumbnail(data, hole.hole_index + offset, fbo); // TODO: Batch this
-// 	// Save output texture as image
-// 	save_texture(out_texture, hole.path);
-// 	// set the output texture in the atlas_texture and delete old textures
-// 	atlas_texture[hole.atlas_id] = out_texture;
-// 	delete_texture(atlas_texture);
-// }
-
-// void ImageManager::refill_holes(std::vector<std::string> &paths, const std::vector<AtlasHole> &holes) {
-// 	int count = 0;
-// 	for (int i = 0; i < holes.size(); i++) {
-// 		AtlasHole hole = holes[i];
-// 		for (int h = 0; i < hole.size; i++) {
-// 			unsigned char *data = get_thumbnail_data(paths[i]);
-// 			put_thumbnail(data, hole, h);
-// 			count++;
-// 		}
-// 	}
-// 	paths.assign(paths.begin() + count, paths.begin() + paths.size());
-// }
-
 void ImageManager::draw_to_fbo(unsigned int *old_texture) {
-	std::shared_ptr<GLJob> job = std::make_shared<GLJob>(
+	auto job = std::make_shared<GLJob>(
 		[this, old_texture]() {
 			if (rdoc_api)
 				rdoc_api->StartFrameCapture(NULL, NULL);
@@ -242,7 +211,7 @@ void ImageManager::draw_to_fbo(unsigned int *old_texture) {
 			GLCall(glBindVertexArray(vao));
 
 			// uniform sampler2D old_texture;
-			if (old_texture != 0) {
+			if (*old_texture != 0) {
 				glActiveTexture(GL_TEXTURE0);
 				GLCall(glBindTexture(GL_TEXTURE_2D, *old_texture));
 				glUniform1i(glGetUniformLocation(atlas_shader, "old_texture"), 0);
@@ -276,12 +245,12 @@ void ImageManager::draw_to_fbo(unsigned int *old_texture) {
 
 void ImageManager::bind_thumbnails(std::vector<std::pair<unsigned int, std::string>> &index_path) {
 	memset(mask, 0, 100);
-	for (int i = 0; i < index_path.size(); i++) {
+	for (int i = 0; i < index_path.size() && Application::get_instance().is_running(); i++) { // TODO: Needs something else to check if it's even on
 		unsigned char *data = get_thumbnail_data(index_path[i].second);
-		auto idx = index_path[i].first;
+		auto		   idx = index_path[i].first;
 		mask[idx] = 0xFF;
 
-		std::shared_ptr<GLJob> job = std::make_shared<GLJob>([this, data, idx]() {
+		auto job = std::make_shared<GLJob>([this, data, idx]() {
 			ASSERT(data != NULL);
 			if (!glIsTexture(image_array)) {
 				GLCall(glGenTextures(1, &image_array));
@@ -317,7 +286,7 @@ void ImageManager::bind_thumbnails(std::vector<std::pair<unsigned int, std::stri
 		});
 		Application::get_instance().glJobQ.push(job);
 	}
-	std::shared_ptr<GLJob> job = std::make_shared<GLJob>([]() {
+	auto job = std::make_shared<GLJob>([]() {
 		if (!glIsTexture(mask_texture)) {
 			GLCall(glGenTextures(1, &mask_texture));
 			GLCall(glBindTexture(GL_TEXTURE_1D, mask_texture));
@@ -377,15 +346,17 @@ void add_images_db(Atlas atlas, std::vector<std::pair<unsigned int, std::string>
 	app.db.executeCommand("BEGIN TRANSACTION;");
 	for (int i = 0; i < fill.size(); i++) {
 		unsigned int id;
-		app.db.executeCommand(fmt::format(
-								  R"(INSERT INTO Images
-			(path, atlas_id, atlas_index)
-			VALUES
-			('{}', {}, {})
-			RETURNING id;)",
-								  fill[i].second,
-								  atlas.id,
-								  fill[i].first),
+		app.db.executeCommand(
+			fmt::format(R"(
+				INSERT INTO Images(path, atlas_id, atlas_index, filename)
+				VALUES
+				('{}', {}, {}, '{}')
+				RETURNING id;
+			)",
+				fill[i].second,
+				atlas.id,
+				fill[i].first,
+				fs::path(fill[i].second).filename().string()),
 			[](void *data, int, char **argv, char **) {
 				unsigned int *id = ( unsigned int * )data;
 				*id = std::stoul(argv[0]);
@@ -401,7 +372,7 @@ void add_images_db(Atlas atlas, std::vector<std::pair<unsigned int, std::string>
 
 int find_id_db() {
 	Application &app = Application::get_instance();
-	int id;
+	int			 id;
 	app.db.executeCommand("SELECT COUNT(1) FROM Atlas;", [](void *data, int, char **argv, char **) {
 		int *id = ( int * )data;
 		*id = std::stoi(argv[0]) + 1;
@@ -427,19 +398,19 @@ void ImageManager::save_framebuffer(std::string &path) {
 	end.lock();
 
 	unsigned char *data = new unsigned char[2240 * 2240 * 3];
-	auto job = std::make_shared<GLJob>([data]() {
-		ASSERT(glIsFramebuffer(framebuffer));
-		GLCall(glBindFramebuffer(GL_FRAMEBUFFER, framebuffer));
-		GLCall(glReadPixels(0,
-			0,
-			2240,
-			2240,
-			GL_RGB,
-			GL_UNSIGNED_BYTE,
-			data));
-	},
-		"",
-		&end);
+	auto		   job = std::make_shared<GLJob>([data]() {
+		  ASSERT(glIsFramebuffer(framebuffer));
+		  GLCall(glBindFramebuffer(GL_FRAMEBUFFER, framebuffer));
+		  GLCall(glReadPixels(0,
+			  0,
+			  2240,
+			  2240,
+			  GL_RGB,
+			  GL_UNSIGNED_BYTE,
+			  data));
+	  },
+		  "",
+		  &end);
 	Application::get_instance().glJobQ.push(job);
 
 	auto atlas_dir = fs::path(path).parent_path();
@@ -481,6 +452,7 @@ void ImageManager::create_atlas(std::queue<std::string> &paths) {
 			count++;
 			paths.pop();
 		}
+		ZoneScoped;
 		bind_thumbnails(hole_fill);
 		unsigned int old_texture = get_hole_atlas(this, atlas);
 		gen_framebuffer(&framebuffer);
@@ -499,7 +471,7 @@ void ImageManager::create_atlas(std::queue<std::string> &paths) {
 
 	// TODO: Now create new ones
 	int iters = (paths.size() + 99) / 100;
-	for (int i = 0; i < iters; i++) {
+	for (int i = 0; i < iters && Application::get_instance().is_running(); i++) {
 		unsigned int count = 0;
 		for (int i = 0; i < 100 && !paths.empty(); i++) {
 			hole_fill.push_back({ i, paths.front() });
@@ -510,7 +482,7 @@ void ImageManager::create_atlas(std::queue<std::string> &paths) {
 		gen_framebuffer(&framebuffer);
 		unsigned int empty = new_texture(2240, 2240);
 		bind_tex_to_fbo(empty, framebuffer);
-		unsigned int old_texture;
+		unsigned int old_texture = 0;
 		draw_to_fbo(&old_texture);
 		unsigned int id = find_id_db();
 		atlas_texture[id] = empty;
@@ -525,14 +497,14 @@ void ImageManager::create_atlas(std::queue<std::string> &paths) {
 
 void ImageManager::discover_images() {
 	Application &app = Application::get_instance();
-	json config = app.getConfig();
+	json		 config = app.getConfig();
 
 	std::queue<std::string> pending;
 	for (const auto &path : config["images"]["paths"].get<std::vector<std::string>>()) {
 		pending.push(path);
 	}
 
-	const int IMAGE_BATCH_SIZE = 100;
+	const int				IMAGE_BATCH_SIZE = 100;
 	std::queue<std::string> found_images;
 
 	int depth = 0;
@@ -570,7 +542,7 @@ void ImageManager::discover_images() {
 void ImageManager::load_images() {
 	Application &app = Application::get_instance();
 	app.db.executeCommand("SELECT * FROM Images;", [](void *data, int, char **argv, char **) {
-		auto images = ( std::unordered_map<unsigned int, ImageTexture> * )data;
+		auto		 images = ( std::unordered_map<unsigned int, ImageTexture> * )data;
 		unsigned int id = ( unsigned int )std::stoul(argv[0]);
 		if (images->find(id) == images->end()) {
 			(*images)[id] = {
@@ -596,31 +568,30 @@ void ImageManager::cache_atlas() {
 		&atlas_ids);
 
 	for (int i = 0; i < atlas_ids.size(); i++) {
-		int _w, _h;
+		int			   _w, _h;
 		unsigned char *data = stbi_load(atlas_ids[i].second.c_str(), &_w, &_h, NULL, 3);
-		int id = atlas_ids[i].first;
-		std::shared_ptr<GLJob> atlasJob = std::make_shared<GLJob>([id, data]() {
-			unsigned int tex_ptr;
-			GLCall(glGenTextures(1, &tex_ptr));
-			GLCall(glBindTexture(GL_TEXTURE_2D, tex_ptr));
-			GLCall(glPixelStorei(GL_UNPACK_ROW_LENGTH, 0));
-			GLCall(glTexImage2D(GL_TEXTURE_2D,
-				0,
-				GL_RGB,
-				2240,
-				2240,
-				0,
-				GL_RGB,
-				GL_UNSIGNED_BYTE,
-				data));
-			GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-			GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-			GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER));
-			GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER));
-			stbi_image_free(data);
+		int			   id = atlas_ids[i].first;
+		auto		   atlasJob = std::make_shared<GLJob>([id, data]() {
+			  unsigned int tex_ptr;
+			  GLCall(glGenTextures(1, &tex_ptr));
+			  GLCall(glBindTexture(GL_TEXTURE_2D, tex_ptr));
+			  GLCall(glTexImage2D(GL_TEXTURE_2D,
+				  0,
+				  GL_RGB,
+				  2240,
+				  2240,
+				  0,
+				  GL_RGB,
+				  GL_UNSIGNED_BYTE,
+				  data));
+			  GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+			  GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+			  GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER));
+			  GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER));
+			  stbi_image_free(data);
 
-			atlas_texture[id] = tex_ptr;
-		});
+			  atlas_texture[id] = tex_ptr;
+		  });
 		app.glJobQ.push(atlasJob);
 	}
 }
@@ -683,62 +654,18 @@ void ImageManager::create_buffers() {
 }
 
 void ImageManager::load_preview(const std::string &path) {
-	int width, height, comp;
-	unsigned char *data = stbi_load(path.c_str(), &width, &height, &comp, 0);
-	auto job = std::make_shared<GLJob>([data, width, height, comp]() {
-		preview_texture.width = width;
-		preview_texture.height = height;
-		if (!glIsTexture(preview_texture.texture_id)) {
-			GLCall(glGenTextures(1, &(preview_texture.texture_id)));
-			GLCall(glBindTexture(GL_TEXTURE_2D, preview_texture.texture_id));
-			GLCall(glPixelStorei(GL_UNPACK_ROW_LENGTH, 0));
-
-			GLenum format = GL_RGB;
-			if (comp == 4)
-				format = GL_RGBA;
-
-			GLCall(glTexImage2D(GL_TEXTURE_2D,
-				0,
-				format,
-				width,
-				height,
-				0,
-				format,
-				GL_UNSIGNED_BYTE,
-				data));
-
-			GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-			GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-			GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER));
-			GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER));
-		} else {
-			GLCall(glBindTexture(GL_TEXTURE_2D, preview_texture.texture_id));
-			GLenum format = GL_RGB;
-			if (comp == 4)
-				format = GL_RGBA;
-			GLCall(glTexImage2D(GL_TEXTURE_2D,
-				0,
-				format,
-				width,
-				height,
-				0,
-				format,
-				GL_UNSIGNED_BYTE,
-				data));
-		}
-	});
-	Application::get_instance().glJobQ.push(job);
+	load_as_texture(&preview_texture, path);
 }
 
 void ImageManager::compile_shader() {
 	auto vert_src = read_file(ROOT_DIR "/rsc/atlas.vert");
 	auto frag_src = read_file(ROOT_DIR "/rsc/atlas.frag");
-	std::shared_ptr<GLJob> job = std::make_shared<GLJob>([vert_src = std::move(vert_src), frag_src = std::move(frag_src)]() {
-		int status;
+	auto job = std::make_shared<GLJob>([vert_src = std::move(vert_src), frag_src = std::move(frag_src)]() {
+		int	 status;
 		char info_log[512];
 
 		unsigned int vert = glCreateShader(GL_VERTEX_SHADER);
-		const char *vert_ptr = vert_src.c_str();
+		const char	*vert_ptr = vert_src.c_str();
 		GLCall(glShaderSource(vert, 1, &vert_ptr, NULL));
 		GLCall(glCompileShader(vert));
 		GLCall(glGetShaderiv(vert, GL_COMPILE_STATUS, &status));
@@ -749,7 +676,7 @@ void ImageManager::compile_shader() {
 		}
 
 		unsigned int frag = glCreateShader(GL_FRAGMENT_SHADER);
-		const char *frag_ptr = frag_src.c_str();
+		const char	*frag_ptr = frag_src.c_str();
 		GLCall(glShaderSource(frag, 1, &frag_ptr, NULL));
 		GLCall(glCompileShader(frag));
 		GLCall(glGetShaderiv(frag, GL_COMPILE_STATUS, &status));
@@ -773,4 +700,52 @@ void ImageManager::compile_shader() {
 		GLCall(glDeleteShader(frag));
 	});
 	Application::get_instance().glJobQ.push(job);
+}
+
+void load_as_texture(ImageTexture *texture, const std::string &path, TextureLoadParams params) {
+	Application::get_instance().async_job([texture, &path, params]() {
+		unsigned char *data = stbi_load(
+			path.c_str(),
+			&texture->width,
+			&texture->height,
+			&texture->channels,
+			params.req_comp);
+		MAKE_JOB([texture, data, params]() {
+			GLenum format = GL_RGB;
+			if (texture->channels == 4)
+				format = GL_RGBA;
+
+			if (!glIsTexture(texture->texture_id)) {
+				GLCall(glGenTextures(1, &(texture->texture_id)));
+				GLCall(glBindTexture(GL_TEXTURE_2D, texture->texture_id));
+				GLCall(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
+				GLCall(glTexImage2D(GL_TEXTURE_2D,
+					0,
+					format,
+					texture->width,
+					texture->height,
+					0,
+					format,
+					GL_UNSIGNED_BYTE,
+					data));
+
+				GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+				GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+				GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER));
+				GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER));
+			} else {
+				GLCall(glBindTexture(GL_TEXTURE_2D, texture->texture_id));
+				GLCall(glTexImage2D(GL_TEXTURE_2D,
+					0,
+					format,
+					texture->width,
+					texture->height,
+					0,
+					format,
+					GL_UNSIGNED_BYTE,
+					data));
+			}
+			stbi_image_free(data);
+		});
+	});
 }

@@ -28,10 +28,10 @@ struct ImageData {
  * SEPARATE THREAD FUNCTIONS
  * - Might have to get mutex for glfwcontext if required access
  */
-void listImagesHelper(fs::path				&dir,
-					  std::vector<fs::path> &imagePaths,
-					  std::vector<fs::path> &pending,
-					  int					&atlasIndex);
+void listImagesHelper(fs::path &dir,
+	std::vector<fs::path>	   &imagePaths,
+	std::vector<fs::path>	   &pending,
+	int						   &atlasIndex);
 // void listImages(fs::path &rootDir, std::vector<fs::path> &imagePaths);
 void loadImage(fs::path imagePath);
 void discoverImages();
@@ -39,15 +39,16 @@ void discoverImages();
 
 unsigned char *loadAndScaleThumbnail(const fs::path &imagePath);
 void		   createAtlas(std::queue<fs::path> &newImagePaths,
-						   LastAtlasInfo		&info,
-						   DBWrapper			&db);
+			  LastAtlasInfo						&info,
+			  DBWrapper							&db);
 void		   loadAtlas();
 // void initializeTexture(fs::path imagePath);
 
 void   interleave2Planar(unsigned char *data);
-float *preprocessNImages(std::vector<std::pair<fs::path, int>> &imagePaths,
-						 int									start,
-						 int									count,
-						 int									image_size);
+float *preprocessNImages(
+	std::vector<std::pair<fs::path, int>> &imagePaths,
+	int									   start,
+	int									   count,
+	int									   image_size);
 
 #endif // IMAGE_UTILS_H

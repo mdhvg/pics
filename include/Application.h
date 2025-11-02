@@ -2,7 +2,7 @@
 #include "SQLiteHelper.h"
 #include "GLJob.h"
 #include "Window/Window.h"
-#include "Window/UILayer.h"
+#include "UI/UILayer.h"
 #include "Thread/threadpool.h"
 
 #include "glad/glad.h"
@@ -31,7 +31,7 @@ namespace fs = std::filesystem;
 class Application {
   public:
 	static Application &get_instance();
-	json getConfig();
+	json				getConfig();
 
 	void start();
 	void loadImages();
@@ -39,6 +39,10 @@ class Application {
 	template <class F>
 	inline void async_job(F &&task, const std::string &name = "") {
 		pool.enqueue(std::forward<F>(task), name);
+	}
+
+	inline bool is_running() {
+		return running;
 	}
 
 	~Application();
@@ -50,16 +54,16 @@ class Application {
 	GLJobQ glJobQ;
 
 	usrch::index_dense_t index;
-	clip_ctx *clip = nullptr;
+	clip_ctx			*clip = nullptr;
 
-	DBWrapper db;
+	DBWrapper	db;
 	const char *dbPath = ROOT_DIR "/pics.sqlite";
 
 	ImageManager img_man;
 
   private:
-	json config;
-	bool config_dirty;
+	json	 config;
+	bool	 config_dirty;
 	fs::path config_path;
 
 	bool running = true;
@@ -69,7 +73,7 @@ class Application {
 	Application(const Application &) = delete;
 	Application &operator=(const Application &) = delete;
 
-	Window window;
+	Window	window;
 	UILayer uiLayer;
 
 	ThreadPool pool;

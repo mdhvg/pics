@@ -7,11 +7,12 @@
 #include <vector>
 
 struct ImageTexture {
-	std::string path;
+	std::string	 path;
 	unsigned int texture_id = 0;  // For thumbnails, this is atlas_id
 	unsigned int image_index = 0; // For thumbnails only
-	size_t width = 0,
-		   height = 0;
+	int			 width = 0,
+		height = 0,
+		channels = 0;
 };
 
 /*
@@ -68,7 +69,7 @@ discovered.
 // Data necessary to store hole location
 struct AtlasHole {
 	std::string path;
-	int atlas_id, hole_index, size;
+	int			atlas_id, hole_index, size;
 };
 
 class ImageManager {
@@ -81,10 +82,10 @@ class ImageManager {
 	static void create_buffers();
 	static void load_preview(const std::string &path);
 
-	std::unordered_map<unsigned int, ImageTexture> images;
+	std::unordered_map<unsigned int, ImageTexture>		  images;
 	static std::unordered_map<unsigned int, unsigned int> atlas_texture;
-	static std::vector<int> display_order; // TODO: Store the image thumbnails display order based on selected setting (That also is a TODO)
-	static ImageTexture preview_texture;
+	static std::vector<int>								  display_order; // TODO: Store the image thumbnails display order based on selected setting (That also is a TODO)
+	static ImageTexture									  preview_texture;
 
   private:
 	void create_atlas(std::queue<std::string> &paths);
@@ -104,5 +105,11 @@ class ImageManager {
 		vao, vbo, ebo;
 	static unsigned char mask[100];
 };
+
+struct TextureLoadParams {
+	int req_comp = 0;
+};
+
+void load_as_texture(ImageTexture *texture, const std::string &path, TextureLoadParams params = { 0 });
 
 #endif // IMAGEMANAGER_H

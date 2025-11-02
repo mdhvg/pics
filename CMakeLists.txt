@@ -295,9 +295,12 @@ if(ENABLE_PROFILING)
     add_library(tracy STATIC "${TRACY_DIR}/public/TracyClient.cpp")
     target_include_directories(tracy PUBLIC "${TRACY_DIR}/public")
     
+    target_compile_definitions(tracy PUBLIC "ENABLE_PROFILING=1")
     target_compile_definitions(tracy PUBLIC TRACY_ENABLE)
     target_link_libraries(${LIB_NAME} PUBLIC tracy)
     target_include_directories(${LIB_NAME} PUBLIC "${TRACY_DIR}/public")
+else()
+    target_compile_definitions(tracy PUBLIC "ENABLE_PROFILING=0")
 endif()
 
 # Tests
