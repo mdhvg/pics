@@ -40,7 +40,7 @@ struct Atlas {
 bool imageExists(const fs::path &path, DBWrapper &db) {
 	bool exists = false;
 
-	db.executeCommand(
+	db.execute_command(
 		fmt::format("SELECT path FROM Images WHERE path = '{}' LIMIT 1;",
 			path.string()),
 		[](void *data, int, char **argv, char **) -> int {
@@ -186,9 +186,6 @@ void bind_tex_to_fbo(unsigned int tex, unsigned int fbo) {
 	end.lock();
 }
 
-void draw_thumbnail(unsigned char *data, int index, unsigned int fbo) {
-}
-
 void ImageManager::draw_to_fbo(unsigned int *old_texture) {
 	auto job = std::make_shared<GLJob>(
 		[this, old_texture]() {
@@ -328,7 +325,7 @@ void delete_texture(unsigned int texture) {
 
 void update_incomplete_db(Atlas atlas, int count) {
 	Application &app = Application::get_instance();
-	app.db.executeCommand(fmt::format(
+	app.db.execute_command(fmt::format(
 		R"(INSERT INTO Atlas
 			(atlas_path, idx, image_count)
 			VALUES ('{}', {}, {})
@@ -343,10 +340,10 @@ void update_incomplete_db(Atlas atlas, int count) {
 
 void add_images_db(Atlas atlas, std::vector<std::pair<unsigned int, std::string>> &fill) {
 	Application &app = Application::get_instance();
-	app.db.executeCommand("BEGIN TRANSACTION;");
+	app.db.execute_command("BEGIN TRANSACTION;");
 	for (int i = 0; i < fill.size(); i++) {
 		unsigned int id;
-		app.db.executeCommand(
+		app.db.execute_command(
 			fmt::format(R"(
 				INSERT INTO Images(path, atlas_id, atlas_index, filename)
 				VALUES
@@ -367,13 +364,13 @@ void add_images_db(Atlas atlas, std::vector<std::pair<unsigned int, std::string>
 			atlas.id,
 			fill[i].first };
 	}
-	app.db.executeCommand("COMMIT;");
+	app.db.execute_command("COMMIT;");
 }
 
 int find_id_db() {
 	Application &app = Application::get_instance();
 	int			 id;
-	app.db.executeCommand("SELECT COUNT(1) FROM Atlas;", [](void *data, int, char **argv, char **) {
+	app.db.execute_command("SELECT COUNT(1) FROM Atlas;", [](void *data, int, char **argv, char **) {
 		int *id = ( int * )data;
 		*id = std::stoi(argv[0]) + 1;
 		return 0;
@@ -384,7 +381,7 @@ int find_id_db() {
 
 void add_atlas_db(Atlas atlas, int count) {
 	Application &app = Application::get_instance();
-	app.db.executeCommand(fmt::format(
+	app.db.execute_command(fmt::format(
 		R"(INSERT INTO Atlas
 			(atlas_path, idx, image_count)
 			VALUES ('{}', {}, {}))",
@@ -430,7 +427,7 @@ void ImageManager::create_atlas(std::queue<std::string> &paths) {
 	std::vector<std::pair<unsigned int, std::string>> hole_fill;
 	// TODO: Find the ones with holes also
 	std::vector<Atlas> incomplete;
-	app.db.executeCommand(R"(SELECT
+	app.db.execute_command(R"(SELECT
 			id,
 			atlas_path,
 			idx
@@ -541,7 +538,7 @@ void ImageManager::discover_images() {
 
 void ImageManager::load_images() {
 	Application &app = Application::get_instance();
-	app.db.executeCommand("SELECT * FROM Images;", [](void *data, int, char **argv, char **) {
+	app.db.execute_command("SELECT * FROM Images;", [](void *data, int, char **argv, char **) {
 		auto		 images = ( std::unordered_map<unsigned int, ImageTexture> * )data;
 		unsigned int id = ( unsigned int )std::stoul(argv[0]);
 		if (images->find(id) == images->end()) {
@@ -560,7 +557,7 @@ void ImageManager::cache_atlas() {
 	Application &app = Application::get_instance();
 
 	std::vector<std::pair<int, std::string>> atlas_ids;
-	app.db.executeCommand("SELECT * FROM Atlas;", [](void *data, int, char **argv, char **) {
+	app.db.execute_command("SELECT * FROM Atlas;", [](void *data, int, char **argv, char **) {
 		auto atlas_ids = ( std::vector<std::pair<int, std::string>> * )data;
 		atlas_ids->push_back({ std::stoi(argv[0]), argv[1] });
 		return 0;
@@ -612,7 +609,7 @@ void ImageManager::create_buffers() {
 		// clang-format on
 	};
 
-	auto job = std::make_shared<GLJob>([vertices, indices]() {
+	MAKE_GLJOB([vertices, indices]() {
 		GLCall(glGenVertexArrays(1, &vao));
 		GLCall(glGenBuffers(1, &vbo));
 		GLCall(glGenBuffers(1, &ebo));
@@ -650,7 +647,6 @@ void ImageManager::create_buffers() {
 			( void * )(2 * sizeof(float))));
 		GLCall(glEnableVertexAttribArray(1))
 	});
-	Application::get_instance().glJobQ.push(job);
 }
 
 void ImageManager::load_preview(const std::string &path) {
@@ -703,14 +699,14 @@ void ImageManager::compile_shader() {
 }
 
 void load_as_texture(ImageTexture *texture, const std::string &path, TextureLoadParams params) {
-	Application::get_instance().async_job([texture, &path, params]() {
+	Application::get_instance().async_job([texture, path = std::move(path), params]() {
 		unsigned char *data = stbi_load(
 			path.c_str(),
 			&texture->width,
 			&texture->height,
 			&texture->channels,
 			params.req_comp);
-		MAKE_JOB([texture, data, params]() {
+		MAKE_GLJOB([texture, data, params]() {
 			GLenum format = GL_RGB;
 			if (texture->channels == 4)
 				format = GL_RGBA;

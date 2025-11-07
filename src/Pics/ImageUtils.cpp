@@ -62,17 +62,16 @@ unsigned char *loadAndScaleThumbnail(const fs::path &imagePath) {
 #else
 	auto s = imagePath.string();
 #endif
-	int width, height, channels;
+	int			   width, height, channels;
 	unsigned char *pixelData =
 		stbi_load(s.c_str(), &width, &height, &channels, 4);
-	ASSERT(pixelData != nullptr &&
-		   fmt::format("Couldn't load image: {}", s).c_str());
+	ASSERT(pixelData != nullptr && fmt::format("Couldn't load image: {}", s).c_str());
 	channels = 4;
 
-	int side = std::min(width, height);
+	int			   side = std::min(width, height);
 	unsigned char *croppedImage = new unsigned char[side * side * channels];
-	int xOffset = (width - side) / 2;
-	int yOffset = (height - side) / 2;
+	int			   xOffset = (width - side) / 2;
+	int			   yOffset = (height - side) / 2;
 	unsigned char *start = pixelData + (yOffset * width + xOffset) * channels;
 	memcpy(croppedImage, start, side * side * channels);
 	stbi_image_free(pixelData);
@@ -95,8 +94,8 @@ unsigned char *loadAndScaleThumbnail(const fs::path &imagePath) {
 }
 
 void createAtlas(std::queue<fs::path> &newImagePaths,
-	LastAtlasInfo &info,
-	DBWrapper &db) {
+	LastAtlasInfo					  &info,
+	DBWrapper						  &db) {
 	std::mutex finish;
 	finish.lock();
 
@@ -116,7 +115,7 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 		auto &current = newImagePaths.front();
 		thumbnailData[i] = loadAndScaleThumbnail(current);
 		// TODO: Create into batch query
-		db.executeCommand(
+		db.execute_command(
 			fmt::format("INSERT INTO Images(path, atlas_path, atlas_index) "
 						"VALUES('{}', '{}', {});",
 				current.string(),
@@ -128,7 +127,7 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 	Application &app = Application::get_instance();
 
 	// If texture is to be re-used, load previous atlas and bind it to fbTex
-	int atlasWidth, atlasHeight, atlasChannels;
+	int			   atlasWidth, atlasHeight, atlasChannels;
 	unsigned char *prevAtlasData = nullptr;
 	if (!info.complete) {
 		prevAtlasData = stbi_load(
@@ -138,7 +137,7 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 			&atlasChannels,
 			4);
 	}
-	GLuint fbTex;
+	GLuint				   fbTex;
 	std::shared_ptr<GLJob> previousAtlasJob =
 		std::make_shared<GLJob>([&fbTex, &info, prevAtlasData]() {
 			GLCall(glGenTextures(1, &fbTex));
@@ -190,7 +189,7 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 	app.glJobQ.push(previousAtlasJob);
 
 	// Create New framebuffer and textureArray
-	GLuint fbo, texArray;
+	GLuint				   fbo, texArray;
 	std::shared_ptr<GLJob> frameBufferJob =
 		std::make_shared<GLJob>([&fbo, &fbTex, &texArray]() {
 			GLCall(glGenFramebuffers(1, &fbo));
@@ -249,7 +248,7 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 		// clang-format on
 	};
 
-	GLuint vao;
+	GLuint				   vao;
 	std::shared_ptr<GLJob> bufferBindJob = std::make_shared<GLJob>([&vertices,
 																	   &indices,
 																	   &vao]() {
@@ -431,7 +430,7 @@ void createAtlas(std::queue<fs::path> &newImagePaths,
 	// stbi_flip_vertically_on_write(1);
 	// stbi_write_png(atlasPath.c_str(), 2240, 2240, 4, atlasData, 0);
 	// delete[] atlasData;
-	db.executeCommand(
+	db.execute_command(
 		fmt::format(R"(INSERT INTO Atlas (atlas_path, idx, image_count) 
 		VALUES ('{}', {}, {})
 		ON CONFLICT(atlas_path) 
@@ -536,7 +535,7 @@ LastAtlasInfo getLastAtlasInfo(DBWrapper &db) {
 	LastAtlasInfo info;
 
 	// Check if any of previous atlases are incomplete
-	db.executeCommand(
+	db.execute_command(
 		query1,
 		[](void *data, int, char **argv, char **) -> int {
 			LastAtlasInfo *info = ( LastAtlasInfo * )data;
@@ -549,7 +548,7 @@ LastAtlasInfo getLastAtlasInfo(DBWrapper &db) {
 
 	// When previous atlases are complete, create new one
 	if (info.complete) {
-		db.executeCommand(
+		db.execute_command(
 			query2,
 			[](void *data, int, char **argv, char **) -> int {
 				LastAtlasInfo *info = ( LastAtlasInfo * )data;
@@ -568,12 +567,12 @@ void discoverImages() {
 
 	// Find images
 	std::queue<fs::path> newImagePaths;
-	std::mutex imagePathMutex;
+	std::mutex			 imagePathMutex;
 
 	// SignalBus &bus = SignalBus::getInstance();
 
 	Application &app = Application::get_instance();
-	json config = app.getConfig();
+	json		 config = app.getConfig();
 
 	std::queue<std::string> pending;
 	for (const auto &path :
@@ -595,8 +594,7 @@ void discoverImages() {
 					pending.push(entry);
 					continue;
 				}
-				if (entry.extension() == ".jpg" ||
-					entry.extension() == ".png") {
+				if (entry.extension() == ".jpg" || entry.extension() == ".png") {
 					// if (imageExists(entry, app.db)) {
 					// 	continue;
 					// }
@@ -709,7 +707,7 @@ void loadAtlas() {
 
 float *copyAsPlanar(float *data, int image_size, int count) {
 	float *imageData = new float[image_size * image_size * 3 * count];
-	int num_pixels = image_size * image_size;
+	int	   num_pixels = image_size * image_size;
 
 	for (int i = 0; i < count; i++) {
 		float *rPlane = imageData + num_pixels * (3 * i + 0);
@@ -727,12 +725,12 @@ float *copyAsPlanar(float *data, int image_size, int count) {
 }
 
 float *preprocessNImages(std::vector<std::pair<fs::path, int>> &imagePaths,
-	int start,
-	int count,
-	int image_size) {
+	int															start,
+	int															count,
+	int															image_size) {
 	float *imageData = new float[image_size * image_size * 3 * count];
-	int idx = 0;
-	int _w, _h, _c;
+	int	   idx = 0;
+	int	   _w, _h, _c;
 	float *_data;
 	for (int i = start; i < count; i++) {
 		_data = stbi_loadf(imagePaths[i].first.c_str(), &_w, &_h, &_c, 3);
@@ -740,8 +738,7 @@ float *preprocessNImages(std::vector<std::pair<fs::path, int>> &imagePaths,
 			_w,
 			_h,
 			0,
-			imageData +
-				(idx * image_size * image_size * 3),
+			imageData + (idx * image_size * image_size * 3),
 			image_size,
 			image_size,
 			0,

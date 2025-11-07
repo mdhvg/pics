@@ -32,6 +32,6 @@ class GLJobQ {
 	std::queue<std::shared_ptr<GLJob>> jobQ;
 };
 
-#define MAKE_JOB(...)                                \
+#define MAKE_GLJOB(...)                              \
 	auto job = std::make_shared<GLJob>(__VA_ARGS__); \
 	Application::get_instance().glJobQ.push(job);

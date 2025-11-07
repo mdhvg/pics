@@ -13,10 +13,10 @@
 
 void finishTextRequests() {
 	Application &app = Application::get_instance();
-	SignalBus &bus = SignalBus::getInstance();
+	SignalBus	&bus = SignalBus::getInstance();
 
 	ggml_context *text_ctx;
-	ggml_cgraph *text_graph;
+	ggml_cgraph	 *text_graph;
 
 	// while (!bus.textEncodeQ.empty()) {
 	// 	std::string request = *(bus.textEncodeQ.pop());
@@ -25,13 +25,12 @@ void finishTextRequests() {
 }
 
 float *embedText(std::string &text,
-	clip_ctx *clip,
-	ggml_context *text_ctx,
-	ggml_cgraph *text_graph) {
-	const size_t graph_size = ggml_tensor_overhead() * GGML_DEFAULT_GRAPH_SIZE +
-							  ggml_graph_overhead();
+	clip_ctx				 *clip,
+	ggml_context			 *text_ctx,
+	ggml_cgraph				 *text_graph) {
+	const size_t	   graph_size = ggml_tensor_overhead() * GGML_DEFAULT_GRAPH_SIZE + ggml_graph_overhead();
 	clip_text_hparams *hparams = clip_get_text_hparams(clip);
-	ggml_init_params graph_params = { graph_size, nullptr, true };
+	ggml_init_params   graph_params = { graph_size, nullptr, true };
 	text_ctx = ggml_init(graph_params);
 	clip_tokens tokens;
 	clip_tokenize(clip, text, &tokens);
@@ -43,18 +42,18 @@ float *embedText(std::string &text,
 
 void modelHandler() {
 	Application &app = Application::get_instance();
-	SignalBus &bus = SignalBus::getInstance();
+	SignalBus	&bus = SignalBus::getInstance();
 	if (!app.clip) {
 		app.clip = clip_model_load(
 			ROOT_DIR "/CLIP-ViT-B-32-laion2B-s34B-b79K_ggml-model-f16.gguf",
 			10);
 	}
 	clip_ctx *clip = app.clip;
-	int image_size = clip_get_vision_hparams(clip)->image_size;
+	int		  image_size = clip_get_vision_hparams(clip)->image_size;
 
 	std::vector<std::pair<fs::path, int>> pendingEmbeddings;
 
-	app.db.executeCommand(
+	app.db.execute_command(
 		"SELECT id, path FROM Images WHERE embedding = 0;",
 		[](void *data, int, char **argv, char **) -> int {
 			std::vector<std::pair<fs::path, int>> *pendingEmbeddings =
@@ -65,7 +64,7 @@ void modelHandler() {
 		&pendingEmbeddings);
 
 	ggml_context *vision_ctx;
-	ggml_cgraph *vision_graph;
+	ggml_cgraph	 *vision_graph;
 
 	// TODO: Change batch size from 4
 	for (int i = 0; i < pendingEmbeddings.size(); i += 4) {
@@ -90,8 +89,7 @@ void modelHandler() {
 		// TODO: Write a assert system for clip.cpp (independent of pics)
 		// Use clip-assert to check if clip model has vision encoder
 		const size_t graph_size =
-			ggml_tensor_overhead() * GGML_DEFAULT_GRAPH_SIZE +
-			ggml_graph_overhead();
+			ggml_tensor_overhead() * GGML_DEFAULT_GRAPH_SIZE + ggml_graph_overhead();
 		ggml_init_params graph_params = { graph_size, nullptr, true };
 		vision_ctx = ggml_init(graph_params);
 		vision_graph = build_image_encode_graph(vision_ctx, clip, batch_size);
@@ -110,7 +108,7 @@ void modelHandler() {
 
 		SPDLOG_INFO("Made Embeddings !!!");
 
-		app.db.executeCommand("BEGIN TRANSACTION;");
+		app.db.execute_command("BEGIN TRANSACTION;");
 		// Save embeddings to the vector index
 		for (int b = 0; b < batch_size; b++) {
 			app.index.try_reserve(4);
@@ -118,14 +116,14 @@ void modelHandler() {
 				output + b * hparams->projection_dim);
 
 			// Update the fields in the sqlite database
-			app.db.executeCommand(
+			app.db.execute_command(
 				fmt::format("UPDATE Images SET embedding = 1 WHERE id = {}",
 					pendingEmbeddings[i + b].second));
 		}
 
 		// Save the vector index to disk
 		app.index.save(INDEX_PATH);
-		app.db.executeCommand("COMMIT");
+		app.db.execute_command("COMMIT");
 
 		// Cleanup
 		ggml_free(vision_ctx);

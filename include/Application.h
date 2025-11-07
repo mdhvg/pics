@@ -30,8 +30,7 @@ namespace fs = std::filesystem;
 
 class Application {
   public:
-	static Application &get_instance();
-	json				getConfig();
+	json getConfig();
 
 	void start();
 	void loadImages();
@@ -43,6 +42,11 @@ class Application {
 
 	inline bool is_running() {
 		return running;
+	}
+
+	inline static Application &get_instance() {
+		static Application instance;
+		return instance;
 	}
 
 	~Application();

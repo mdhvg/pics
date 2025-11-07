@@ -23,7 +23,7 @@ void db_init() {
 	Application &app = Application::get_instance();
 	app.db.init(app.dbPath); // TODO: Can make a config parser and have db path come from it
 	// TODO: Make an entry for mtime, ctime (UNIX epoch both), size and other stuff in Images table.
-	app.db.executeCommand(R"(
+	app.db.execute_command(R"(
 		CREATE TABLE IF NOT EXISTS Images (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			path TEXT NOT NULL UNIQUE,
@@ -70,11 +70,6 @@ void db_init() {
 // 	}
 // }
 
-Application &Application::get_instance() {
-	static Application instance;
-	return instance;
-}
-
 Application::Application()
 	: pool(4), running(true), config(create_default_config())
 /*
@@ -91,31 +86,16 @@ Application::Application()
 	  them and save those indexes. Wait for *AI* tasks and send response when
 	  required
 		  */
-//   discoverWorker(discoverImages), atlasWorker(loadAtlas)
 //   modelWorker(modelHandler)
 {
 
-	// This kinda API
-	// db_init(); - Run all commands to create tables, etc (Different thread)
 	pool.enqueue(db_init, "Database init");
-	// db_init();
-
-	// load_atlases(); - Load existing atlases (Different thread, GLJob way)
-	// compile_shader(); - Compile all the different shaders that will be used (Different thread, GLJob way)
-	// discover_images(); - Find all new images in the selected dirs (Different thread)
-	// 		create_atlases(); - Create images atlases
-
-	// ui_init(); - Do OpenGL and ImGUI things (Same thread)
-	// ui_init();
 
 	if (void *mod = dlopen("librenderdoc.so", RTLD_NOW | RTLD_NOLOAD)) {
 		pRENDERDOC_GetAPI RENDERDOC_GetAPI = ( pRENDERDOC_GetAPI )dlsym(mod, "RENDERDOC_GetAPI");
 		int				  ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_6_0, ( void ** )&rdoc_api);
 		ASSERT(ret == 1);
 	}
-
-	// config_path = ROOT_DIR "/config.json";
-	// load_config();
 
 	// index = usrch::index_dense_t::make(
 	// 	usrch::metric_punned_t(512, usrch::metric_kind_t::cos_k));
@@ -143,8 +123,8 @@ void Application::start() {
 		window.poll();
 		uiLayer.update(window.get_delta());
 		uiLayer.render();
-		window.update();
 		process_GL_job();
+		window.update();
 	}
 
 	running = false;
