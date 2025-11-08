@@ -2,6 +2,9 @@ build
 bin
 imgui
 deps/stb
+deps/icons
+deps/sqlite.zip
+deps/sqlite
 
 test_imgs
 wallpapers

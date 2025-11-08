@@ -8,8 +8,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
-include(CTest)
-
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/bin/Debug")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/lib/Debug")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/bin/Release")
@@ -236,58 +234,51 @@ target_link_libraries(${LIB_NAME} PUBLIC imgui)
 # target_link_libraries("${LIB_NAME}Tests" imgui)
 
 # SQLite3
-include(FetchContent)
-
-FetchContent_Declare(
-  sqlite3
-  URL https://sqlite.org/2025/sqlite-amalgamation-3490100.zip
-  URL_HASH SHA256=6cebd1d8403fc58c30e93939b246f3e6e58d0765a5cd50546f16c00fd805d2c3
-)
-
-FetchContent_MakeAvailable(sqlite3)
-
-add_library(sqlite3 ${sqlite3_SOURCE_DIR}/sqlite3.c)
-target_include_directories(sqlite3 PUBLIC ${sqlite3_SOURCE_DIR})
+set(SQLITE_DIR "${DEPS_DIR}/sqlite")
+file(GLOB_RECURSE SQLITE_SRC CONFIGURE_DEPENDS "${SQLITE_DIR}*.[hc]")
+add_library(sqlite3 ${SQLITE_SRC})
+target_include_directories(${LIB_NAME} PUBLIC ${SQLITE_DIR})
 target_link_libraries(${LIB_NAME} PUBLIC sqlite3)
-# target_link_libraries("${PROJECT_NAME}Tests" sqlite3)
 
 # GGML
 set(GGML_DIR "${DEPS_DIR}/ggml")
 add_subdirectory("${GGML_DIR}")
 target_link_libraries(${LIB_NAME} PUBLIC ggml)
 target_include_directories(${LIB_NAME} PUBLIC "${GGML_DIR}/include")
-# target_link_libraries("${LIB_NAME}Tests" ggml)
 
 # Usearch
 set(USEARCH_DIR "${DEPS_DIR}/usearch")
 add_subdirectory("${USEARCH_DIR}")
 target_link_libraries(${LIB_NAME} PUBLIC usearch)
 target_include_directories(${LIB_NAME} PUBLIC "${USEARCH_DIR}/include")
-# target_link_libraries("${LIB_NAME}Tests" usearch)
 
 # STB
 set(STB_DIR "${DEPS_DIR}/stb")
-file(MAKE_DIRECTORY ${STB_DIR})
+set(STB_image_PATH "${STB_DIR}/stb_image.h")
+set(STB_image_write_PATH "${STB_DIR}/stb_image_write.h")
+set(STB_image_resize2_PATH "${STB_DIR}/stb_image_resize2.h")
 
-set(STB_IMAGE_URL "https://raw.githubusercontent.com/nothings/stb/master/stb_image.h")
-set(STB_IMAGE_WRITE_URL "https://raw.githubusercontent.com/nothings/stb/master/stb_image_write.h")
-set(STB_IMAGE_RESIZE_URL "https://raw.githubusercontent.com/nothings/stb/master/stb_image_resize2.h")
-
-file(DOWNLOAD ${STB_IMAGE_URL} ${STB_DIR}/stb_image.h)
-file(DOWNLOAD ${STB_IMAGE_WRITE_URL} ${STB_DIR}/stb_image_write.h)
-file(DOWNLOAD ${STB_IMAGE_RESIZE_URL} ${STB_DIR}/stb_image_resize2.h)
+if(NOT EXISTS ${STB_image_PATH})
+    message(FATAL_ERROR "${STB_image_PATH} Doesn't exist")
+endif()
+if(NOT EXISTS ${STB_image_write_PATH})
+    message(FATAL_ERROR "${STB_image_write_PATH} Doesn't exist")
+endif()
+if(NOT EXISTS ${STB_image_resize2_PATH})
+    message(FATAL_ERROR "${STB_image_resize2_PATH} Doesn't exist")
+endif()
 
 target_include_directories(${LIB_NAME} PUBLIC "${STB_DIR}")
-# target_include_directories("${LIB_NAME}Tests" PUBLIC "${STB_DIR}")
 
 # juliettef/IconFontCppHeaders
-set(ICON_FONT_DIR "${DEPS_DIR}/stb")
-file(MAKE_DIRECTORY ${ICON_FONT_DIR})
+set(ICON_FONT_DIR "${DEPS_DIR}/icons")
+set(ICON_FONT_PATH "${ICON_FONT_DIR}/IconsLucide.h")
 
-set(ICON_FONT_LUCIDE_URL "https://raw.githubusercontent.com/juliettef/IconFontCppHeaders/refs/heads/main/IconsLucide.h")
-file(DOWNLOAD ${ICON_FONT_LUCIDE_URL} ${ICON_FONT_DIR}/IconsLucide.h)
+if(NOT EXISTS ${ICON_FONT_PATH})
+    message(FATAL_ERROR "${ICON_FONT_PATH} Doesn't exist")
+endif()
 
-target_include_directories(${LIB_NAME} PUBLIC "${STB_DIR}")
+target_include_directories(${LIB_NAME} PUBLIC "${ICON_FONT_DIR}")
 
 # wolfpld/tracy
 if(ENABLE_PROFILING)
@@ -295,12 +286,12 @@ if(ENABLE_PROFILING)
     add_library(tracy STATIC "${TRACY_DIR}/public/TracyClient.cpp")
     target_include_directories(tracy PUBLIC "${TRACY_DIR}/public")
     
-    target_compile_definitions(tracy PUBLIC "ENABLE_PROFILING=1")
     target_compile_definitions(tracy PUBLIC TRACY_ENABLE)
+    target_compile_definitions(${LIB_NAME} PUBLIC "ENABLE_PROFILING=1")
     target_link_libraries(${LIB_NAME} PUBLIC tracy)
     target_include_directories(${LIB_NAME} PUBLIC "${TRACY_DIR}/public")
 else()
-    target_compile_definitions(tracy PUBLIC "ENABLE_PROFILING=0")
+    target_compile_definitions(${LIB_NAME} PUBLIC "ENABLE_PROFILING=0")
 endif()
 
 # Tests
