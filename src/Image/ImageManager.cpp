@@ -1,4 +1,5 @@
 #include "GLJob.h"
+#include "spdlog/spdlog.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
@@ -707,40 +708,60 @@ void load_as_texture(ImageTexture *texture, const std::string &path, TextureLoad
 			&texture->channels,
 			params.req_comp);
 		MAKE_GLJOB([texture, data, params]() {
-			GLenum format = GL_RGB;
-			if (texture->channels == 4)
-				format = GL_RGBA;
-
 			if (!glIsTexture(texture->texture_id)) {
 				GLCall(glGenTextures(1, &(texture->texture_id)));
-				GLCall(glBindTexture(GL_TEXTURE_2D, texture->texture_id));
 				GLCall(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
-				GLCall(glTexImage2D(GL_TEXTURE_2D,
-					0,
-					format,
-					texture->width,
-					texture->height,
-					0,
-					format,
-					GL_UNSIGNED_BYTE,
-					data));
-
-				GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-				GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-				GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER));
-				GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER));
-			} else {
-				GLCall(glBindTexture(GL_TEXTURE_2D, texture->texture_id));
-				GLCall(glTexImage2D(GL_TEXTURE_2D,
-					0,
-					format,
-					texture->width,
-					texture->height,
-					0,
-					format,
-					GL_UNSIGNED_BYTE,
-					data));
 			}
+
+			GLCall(glBindTexture(GL_TEXTURE_2D, texture->texture_id));
+			GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+			GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+			GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER));
+			GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER));
+
+			GLenum format = GL_RGB, internal_format = GL_RGBA8;
+			GLint  swizzle_mask[] = { GL_RED, GL_GREEN, GL_BLUE, GL_ONE };
+			switch (texture->channels) {
+			case 1:
+				format = GL_RED;
+				internal_format = GL_R8;
+				swizzle_mask[1] = GL_RED;
+				swizzle_mask[2] = GL_RED;
+				swizzle_mask[3] = GL_ONE;
+				break;
+			case 2:
+				format = GL_RG;
+				internal_format = GL_RG8;
+				swizzle_mask[2] = GL_RED;
+				swizzle_mask[3] = GL_ONE;
+				break;
+			case 3:
+				format = GL_RGB;
+				internal_format = GL_RGB8;
+				swizzle_mask[3] = GL_ONE;
+				break;
+			case 4:
+				format = GL_RGBA;
+				internal_format = GL_RGBA8;
+				break;
+			default:
+				SPDLOG_ERROR("Format definition not found: {}", texture->channels);
+				ASSERT(false);
+			}
+			SPDLOG_INFO("Channels: {}", texture->channels);
+
+			GLCall(glTexImage2D(
+				GL_TEXTURE_2D,
+				0,
+				format,
+				texture->width,
+				texture->height,
+				0,
+				format,
+				GL_UNSIGNED_BYTE,
+				data));
+			GLCall(glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzle_mask));
+
 			stbi_image_free(data);
 		});
 	});

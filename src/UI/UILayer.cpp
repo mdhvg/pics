@@ -24,6 +24,8 @@ static ImFont *title_font = NULL;
 internal std::vector<unsigned int> order;
 internal unsigned int			   active_index = 0;
 
+internal unsigned int image_count = 0;
+
 struct PrevState {
 	Sort sorting{ FILENAME };
 
@@ -138,7 +140,7 @@ void UILayer::update(double delta) {
 	if (state.menu_sidebar) {
 		state.sidebar_width = 200;
 	} else {
-		state.sidebar_width = 50;
+		state.sidebar_width = 30;
 	}
 
 	if (state.active_image != prev.last_image) {
@@ -151,6 +153,11 @@ void UILayer::update(double delta) {
 	if (state.sorting != prev.sorting) {
 		PERF(SET_ORDER, set_order(state.sorting));
 		prev.sorting = state.sorting;
+	}
+
+	if (Application::get_instance().img_man.images.size() != image_count) {
+		PERF(SET_ORDER, set_order(state.sorting));
+		image_count = Application::get_instance().img_man.images.size();
 	}
 }
 
